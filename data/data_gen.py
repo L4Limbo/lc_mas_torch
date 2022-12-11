@@ -100,7 +100,7 @@ def generate_dataset(gen_pipeline: pipeline, data: json) -> None:
                     'gt_index': '',
                 }
                 dialogue['gt_index'] = str(len(
-                    dialogue['answer_options'] - 1))
+                    dialogue['answer_options']) - 1)
 
                 current_dialog['dialog'].append(dialogue)
 
