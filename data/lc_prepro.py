@@ -4,6 +4,7 @@ import h5py
 import copy
 import argparse
 import numpy as np
+import random
 from nltk.tokenize import word_tokenize
 
 
@@ -14,11 +15,10 @@ def tokenize_data(data, word_count=False):
     '''
     res, word_counts = {}, {}
 
-    print('Tokenizing data for %s...' % data['split'])
-    print('Tokenizing documents...')
+    print('Tokenizing data and documents...')
 
     for i in data['data']['dialogs']:
-        summary_id = i['summary_id']
+        summary_id = i['summary']
         document = word_tokenize(i['document'])
         res[summary_id] = {'document': document}
 
@@ -34,13 +34,13 @@ def tokenize_data(data, word_count=False):
         # last round of dialog will not have answer for test split
         if 'answer' not in i['dialog'][-1]:
             i['dialog'][-1]['answer'] = -1
-        res[i['summary_id']]['num_rounds'] = len(i['dialog'])
+        res[i['summary']]['num_rounds'] = len(i['dialog'])
         # right-pad i['dialog'] with empty question-answer pairs at the end
-        while len(i['dialog']) < 10:
+        while len(i['dialog']) < 5:
             i['dialog'].append({'question': -1, 'answer': -1})
-        res[i['summary_id']]['dialog'] = i['dialog']
+        res[i['summary']]['dialog'] = i['dialog']
         if word_count == True:
-            for j in range(10):
+            for j in range(5):
                 question = ques_toks[i['dialog'][j]['question']]
                 answer = ans_toks[i['dialog'][j]['answer']]
                 for word in question + answer:
@@ -78,33 +78,33 @@ def encode_vocab(data_toks, ques_toks, ans_toks, word2ind):
 
 
 def split_data(json_data, train_path, val_path, test_path):
-    train_data = {}
-    val_data = {}
-    test_data = {}
+    train_data, val_data, test_data = {
+        'data': {}}, {'data': {}}, {'data': {}}
 
-    data_size = len(json_data['dialogs'])
+    data_size = len(json_data['data']['dialogs'])
 
-    train_data['questions'] = json_data['questions'][:]
-    val_data['questions'] = json_data['questions'][:]
-    test_data['questions'] = json_data['questions'][:]
+    train_data['data']['questions'] = json_data['data']['questions'][:]
+    val_data['data']['questions'] = json_data['data']['questions'][:]
+    test_data['data']['questions'] = json_data['data']['questions'][:]
 
-    train_data['answers'] = json_data['answers'][:]
-    val_data['answers'] = json_data['answers'][:]
-    test_data['answers'] = json_data['answers'][:]
+    train_data['data']['answers'] = json_data['data']['answers'][:]
+    val_data['data']['answers'] = json_data['data']['answers'][:]
+    test_data['data']['answers'] = json_data['data']['answers'][:]
 
-    train_data['dialogs'] = json_data['dialogs'][0:int(data_size * 0.6)]
-    val_data['dialogs'] = json_data['dialogs'][int(
+    train_data['data']['dialogs'] = json_data['data']['dialogs'][0:int(
+        data_size * 0.6)]
+    val_data['data']['dialogs'] = json_data['data']['dialogs'][int(
         data_size * 0.6):int(data_size * 0.8)]
-    test_data['dialogs'] = json_data['dialogs'][int(
+    test_data['data']['dialogs'] = json_data['data']['dialogs'][int(
         data_size * 0.8):int(data_size)]
 
-    with open(json_data, 'w') as jsonFile:
+    with open(train_path, 'w') as jsonFile:
         jsonFile.write(json.dumps(train_data, indent=4))
 
-    with open(json_data, 'w') as jsonFile:
+    with open(val_path, 'w') as jsonFile:
         jsonFile.write(json.dumps(val_data, indent=4))
 
-    with open(json_data, 'w') as jsonFile:
+    with open(test_path, 'w') as jsonFile:
         jsonFile.write(json.dumps(test_data, indent=4))
 
     return train_data, val_data, test_data
@@ -137,7 +137,7 @@ def create_data_mats(data_toks, ques_inds, ans_inds, dtype):
         documents[i][0:document_len[i]
                      ] = data_toks[summary_id]['document_inds'][0:max_doc_len]
 
-    num_rounds = 10
+    num_rounds = 5
     max_ques_len = 20
     max_ans_len = 40
 
@@ -164,14 +164,17 @@ def create_data_mats(data_toks, ques_inds, ans_inds, dtype):
     # create ground truth answer and options data mats
     answer_index = np.zeros([num_threads, num_rounds])
     num_rounds_list = np.full(num_threads, 10)
-    options = np.zeros([num_threads, num_rounds, 100])
+    options = np.zeros([num_threads, num_rounds, 30])
 
     for i in range(num_threads):
         summary_id = summary_ids[i]
         for j in range(num_rounds):
-            options[i][j] = np.array(
-                data_toks[summary_id]['dialog'][j]['answer_options']) + 1
-            answer_index[i][j] = data_toks[summary_id]['dialog'][j]['gt_index'] + 1
+            if (data_toks[summary_id]['dialog'][j]['answer'] != -1):
+                rand_padding = np.array([random.choice(range(num_threads))
+                                        for i in range(num_threads)])
+                options[i][j] = np.concatenate((np.array(
+                    data_toks[summary_id]['dialog'][j]['answer_options'][:30]), rand_padding[:30-len(data_toks[summary_id]['dialog'][j]['answer_options'][:30])])) + 1
+                answer_index[i][j] = data_toks[summary_id]['dialog'][j]['gt_index'] + 1
     options_list = np.zeros([len(ans_inds), max_ans_len])
     options_len = np.zeros(len(ans_inds), dtype=np.int)
 
@@ -186,14 +189,14 @@ if __name__ == "__main__":
 
     print('Preprocessing ...')
     # Input Files
-    input_path = r'./data/generated_data/gen_dataset.json'
-    train_path = r'./data/generated_data/train.json'
-    val_path = r'./data/generated_data/val.json'
-    test_path = r'./data/generated_data/test.json'
+    input_path = './generated_data/gen_dataset.json'
+    train_path = './generated_data/train.json'
+    val_path = './generated_data/val.json'
+    test_path = './generated_data/test.json'
 
     # Output Files
-    output_json = r'./data/processed_data/processed_data.json'
-    output_h5 = r'./data/processed_data/processed_data.h5'
+    output_json = './processed_data/processed_data.json'
+    output_h5 = './processed_data/processed_data.h5'
 
     os.makedirs('./processed_data',  exist_ok=True)
 
@@ -214,7 +217,10 @@ if __name__ == "__main__":
     data_test_toks, ques_test_toks, ans_test_toks, word_counts_test = tokenize_data(
         data_test, True)
 
+    print('Building vocabulary...')
     word_counts_all = dict(word_counts_train)
+    word_counts_all.update(dict(word_counts_val))
+    word_counts_all.update(dict(word_counts_test))
 
     for word, count in word_counts_val.items():
         word_counts_all[word] = word_counts_all.get(word, 0) + count
@@ -222,7 +228,6 @@ if __name__ == "__main__":
     for word, count in word_counts_test.items():
         word_counts_all[word] = word_counts_all.get(word, 0) + count
 
-    print('Building vocabulary...')
     word_counts_all['UNK'] = 5
     vocab = [word for word in word_counts_all
              if word_counts_all[word] >= 5]
