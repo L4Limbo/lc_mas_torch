@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-from utils import utilities as utils
+from utils import lc_utilities as utils
 
 
 class Encoder(nn.Module):
