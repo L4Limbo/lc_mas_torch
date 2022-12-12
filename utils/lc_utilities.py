@@ -59,7 +59,7 @@ def loadModel(params, agent='abot', overwrite=False):
     # should be everything used in encoderParam, decoderParam below
     encoderOptions = [
         'encoder', 'vocabSize', 'embedSize', 'rnnHiddenSize', 'numLayers',
-        'useHistory', 'useIm', 'summEmbedSize', 'summFeatureSize', 'numRounds',
+        'useHistory', 'useSumm', 'summEmbedSize', 'summFeatureSize', 'numRounds',
         'dropout'
     ]
     decoderOptions = [
@@ -131,15 +131,15 @@ def loadModel(params, agent='abot', overwrite=False):
         encoderParam['type'] = params['encoder']
         decoderParam['type'] = params['decoder']
         encoderParam['isAnswerer'] = True
-        from visdial.models.answerer import Answerer
+        from lc.models.lc_answerer import Answerer
         model = Answerer(encoderParam, decoderParam)
 
     elif agent == 'qbot':
         encoderParam['type'] = params['qencoder']
         decoderParam['type'] = params['qdecoder']
         encoderParam['isAnswerer'] = False
-        encoderParam['useIm'] = False
-        from visdial.models.questioner import Questioner
+        encoderParam['useSumm'] = False
+        from lc.models.lc_questioner import Questioner
         model = Questioner(
             encoderParam,
             decoderParam,
@@ -204,6 +204,7 @@ def dynamicRNN(rnnModel,
     '''
     sortedLen, fwdOrder, bwdOrder = getSortedOrder(seqLens)
     sortedSeqInput = seqInput.index_select(dim=0, index=fwdOrder)
+
     packedSeqInput = pack_padded_sequence(
         sortedSeqInput, lengths=sortedLen, batch_first=True)
 
@@ -283,8 +284,8 @@ def concatPaddedSequences(seq1, seqLens1, seq2, seqLens2, padding='right'):
     maxCatLen = cat_seq.size(1)
     batchSize = seq1.size(0)
     for b_idx in range(batchSize):
-        len_1 = seqLens1[b_idx].data[0]
-        len_2 = seqLens2[b_idx].data[0]
+        len_1 = seqLens1[b_idx].data.item()
+        len_2 = seqLens2[b_idx].data.item()
 
         cat_len_ = len_1 + len_2
         if cat_len_ == 0:

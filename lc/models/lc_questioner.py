@@ -73,6 +73,7 @@ class Questioner(Agent):
         if ques is not None:
             assert round == len(self.questions), \
                 "Round number does not match number of questions observed"
+
             self.questions.append(ques)
 
         self.encoder.observe(round, ques=ques, **kwargs)

@@ -351,7 +351,7 @@ class Decoder(nn.Module):
                 mask_ = aliveVector.eq(0).repeat(1, 1, self.vocabSize)
                 mask_[:, :,
                       0] = 0  # Zeroing all except first row for ended beams
-                minus_infinity_ = torch.min(logProbs).data[0]
+                minus_infinity_ = torch.min(logProbs).data.item()
                 logProbs.data.masked_fill_(mask_.data, minus_infinity_)
 
                 logProbs = logProbs.view(batchSize, -1)

@@ -79,7 +79,7 @@ def readCommandLine(argv=None):
                         choices=['sl-abot', 'sl-qbot', 'rl-full-QAf'])
     parser.add_argument('-numRounds', default=5, type=int,
                         help='Number of rounds of dialog (max 10)')
-    parser.add_argument('-batchSize', default=20, type=int,
+    parser.add_argument('-batchSize', default=1, type=int,
                         help='Batch size (number of threads) '
                         '(Adjust base on GPU memory)')
     parser.add_argument('-learningRate', default=1e-3, type=float,
@@ -87,7 +87,7 @@ def readCommandLine(argv=None):
     parser.add_argument('-minLRate', default=5e-5, type=float,
                         help='Minimum learning rate')
     parser.add_argument('-dropout', default=0.0, type=float, help='Dropout')
-    parser.add_argument('-numEpochs', default=65, type=int, help='Epochs')
+    parser.add_argument('-numEpochs', default=40, type=int, help='Epochs')
     parser.add_argument('-lrDecayRate', default=0.9997592083, type=float,
                         help='Decay for learning rate')
     parser.add_argument('-CELossCoeff', default=200, type=float,
@@ -103,7 +103,7 @@ def readCommandLine(argv=None):
 
     # Other training environmnet settings
     parser.add_argument('-useGPU', action='store_true', help='Use GPU or CPU')
-    parser.add_argument('-numWorkers', default=2, type=int,
+    parser.add_argument('-numWorkers', default=0, type=int,
                         help='Number of worker threads in dataloader')
 
     # -------------------------------------------------------------------------
@@ -140,9 +140,9 @@ def readCommandLine(argv=None):
 
     # check if summary is needed
     if 'lateim' in parsed['encoder']:
-        parsed['useIm'] = 'late'
-    elif 'im' in parsed['encoder']:
-        parsed['useIm'] = True
+        parsed['useSumm'] = 'late'
+    elif 'summ' in parsed['encoder']:
+        parsed['useSumm'] = True
     else:
-        parsed['useIm'] = False
+        parsed['useSumm'] = False
     return parsed

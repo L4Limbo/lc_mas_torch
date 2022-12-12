@@ -25,14 +25,14 @@ class LCDataset(Dataset):
         self.useAnswer = True
         self.useOptions = True
         self.useHistory = True
-        # self.useSumm = True
+        self.useSumm = False
 
         # Absorb parameters
         for key, value in iteritems(params):
             setattr(self, key, value)
         self.subsets = tuple(subsets)
         self.numRounds = params['numRounds']
-
+        print('NumRounds %s' % self.numRounds)
         print('\nDataloader loading json file: ' + self.inputJson)
         with open(self.inputJson, 'r') as fileId:
             info = json.load(fileId)
@@ -211,7 +211,7 @@ class LCDataset(Dataset):
             for rId in range(numRounds):
                 length = seqLen[thId, rId]
                 if length == 0:
-                    print('Warning: Skipping empty %s sequence at (%d, %d)'
+                    print('Warning processSequence: Skipping empty %s sequence at (%d, %d)'
                           % (stype, thId, rId))
                     continue
 
@@ -244,8 +244,8 @@ class LCDataset(Dataset):
         for thId in range(numConvs):
             length = seqLen[thId]
             if length == 0:
-                print('Warning: Skipping empty %s sequence at (%d)' % (stype,
-                                                                       thId))
+                print('Warning processDocument: Skipping empty %s sequence at (%d)' % (stype,
+                                                                                       thId))
                 continue
 
             sequence[thId, 1:length + 1] = seq[thId, :length]
@@ -271,7 +271,7 @@ class LCDataset(Dataset):
         for ansId in range(ansListLen):
             length = ansLen[ansId]
             if length == 0:
-                print('Warning: Skipping empty option answer list at (%d)'
+                print('Warning processOptions: Skipping empty option answer list at (%d)'
                       % ansId)
                 continue
 
@@ -290,7 +290,10 @@ class LCDataset(Dataset):
         return self.numDataPoints[self._split]
 
     def __getitem__(self, idx):
-        item = self.getIndexItem(self._split, idx)
+        try:
+            item = self.getIndexItem(self._split, idx)
+        except:
+            print('error')
         return item
 
     def collate_fn(self, batch):
@@ -362,9 +365,9 @@ class LCDataset(Dataset):
             newSize = torch.Size(optSize + [-1])
 
             indVector = optInds.view(-1)
+            indVector[indVector < 0] = 0
             optLens = self.data[dtype + '_opt_len'].index_select(0, indVector)
             optLens = optLens.view(optSize)
-
             opts = self.data[dtype + '_opt_seq'].index_select(0, indVector)
 
             item['opt'] = opts.view(newSize)
