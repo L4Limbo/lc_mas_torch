@@ -120,7 +120,7 @@ class VisDialDataset(Dataset):
                         im['id']: im['file_path']
                         for im in coco_info['images']
                     }
-                    cocoids = getattr(self, 'unique_img_%s'%dtype)
+                    cocoids = getattr(self, 'unique_img_%s' % dtype)
                     if '.jpg' not in cocoids[0]:
                         img_fnames = [
                             os.path.join(coco_dir, id_to_fname[int(cocoid)])
@@ -164,9 +164,9 @@ class VisDialDataset(Dataset):
         assert split in self.subsets  # ['train', 'val', 'test']
         self._split = split
 
-    #----------------------------------------------------------------------------
+    # ----------------------------------------------------------------------------
     # Dataset preprocessing
-    #----------------------------------------------------------------------------
+    # ----------------------------------------------------------------------------
 
     def prepareDataset(self, dtype):
         if self.useHistory:
@@ -211,8 +211,8 @@ class VisDialDataset(Dataset):
             for rId in range(numRounds):
                 length = seqLen[thId, rId]
                 if length == 0:
-                    print('Warning: Skipping empty %s sequence at (%d, %d)'\
-                          %(stype, thId, rId))
+                    print('Warning: Skipping empty %s sequence at (%d, %d)'
+                          % (stype, thId, rId))
                     continue
 
                 sequence[thId, rId, 1:length + 1] = seq[thId, rId, :length]
@@ -271,8 +271,8 @@ class VisDialDataset(Dataset):
         for ansId in range(ansListLen):
             length = ansLen[ansId]
             if length == 0:
-                print('Warning: Skipping empty option answer list at (%d)'\
-                        %ansId)
+                print('Warning: Skipping empty option answer list at (%d)'
+                      % ansId)
                 continue
 
             options[ansId, 1:length + 1] = ans[ansId, :length]
@@ -281,9 +281,9 @@ class VisDialDataset(Dataset):
         self.data[dtype + '_opt_len'] = ansLen + 1
         self.data[dtype + '_opt_seq'] = options
 
-    #----------------------------------------------------------------------------
+    # ----------------------------------------------------------------------------
     # Dataset helper functions for PyTorch's datalaoder
-    #----------------------------------------------------------------------------
+    # ----------------------------------------------------------------------------
 
     def __len__(self):
         # Assert that loader_dtype is in subsets ['train', 'val', 'test']
@@ -321,13 +321,14 @@ class VisDialDataset(Dataset):
 
         if 'opt' in out.keys():
             optLen = out['opt_len'] + 1
-            out['opt'] = out['opt'][:, :, :, :torch.max(optLen) + 2].contiguous()
+            out['opt'] = out['opt'][:, :, :,
+                                    :torch.max(optLen) + 2].contiguous()
 
         return out
 
-    #----------------------------------------------------------------------------
+    # ----------------------------------------------------------------------------
     # Dataset indexing
-    #----------------------------------------------------------------------------
+    # ----------------------------------------------------------------------------
 
     def getIndexItem(self, dtype, idx):
         item = {'index': idx}
