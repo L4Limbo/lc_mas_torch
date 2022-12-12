@@ -240,7 +240,8 @@ class Decoder(nn.Module):
             raise RuntimeError("Reinforce called without sampling in Decoder")
 
         for t, log_prob in enumerate(self.saved_log_probs):
-            loss += -1 * log_prob * (reward * (self.mask[:, t].float()))
+            loss += -1 * log_prob * \
+                (reward.detach() * (self.mask[:, t].float()))
         return loss
 
     def beamSearchDecoder(self, initStates, beamSize, maxSeqLen):

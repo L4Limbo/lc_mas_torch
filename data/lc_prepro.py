@@ -51,6 +51,16 @@ def tokenize_data(data, word_count=False):
     return res, ques_toks, ans_toks, word_counts
 
 
+def encode_summaries(data_toks, word2ind):
+    res = {}
+
+    for key in data_toks.keys():
+        res[key] = [word2ind.get(word, word2ind['UNK'])
+                    for word in data_toks[key]][:40]
+
+    return res
+
+
 def encode_vocab(data_toks, ques_toks, ans_toks, word2ind):
     '''
     Converts string tokens to indices based on given dictionary
@@ -291,6 +301,9 @@ if __name__ == "__main__":
         data_val_toks, ques_val_toks, ans_val_toks, word2ind)
     data_test_toks, ques_test_inds, ans_test_inds = encode_vocab(
         data_test_toks, ques_test_toks, ans_test_toks, word2ind)
+
+    summaries_data_toks = encode_summaries(summaries_data_toks, word2ind)
+    json.dump(summaries_data_toks, open('./processed_data/summ.json', 'w'))
 
     print('Creating data matrices...')
     documents_train, documents_train_len, questions_train, questions_train_len, answers_train, answers_train_len, options_train, options_train_list, options_train_len, answers_train_index, summarys_train_index, summarys_train_list, _ = create_data_mats(

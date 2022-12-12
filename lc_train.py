@@ -26,7 +26,7 @@ from utils import lc_utilities as utils
 
 # Read the command line options
 params = lc_options.readCommandLine()
-
+params['trainMode'] = 'rl-full-QAf'
 # Seed rng for reproducibility
 random.seed(params['randomSeed'])
 torch.manual_seed(params['randomSeed'])
@@ -54,19 +54,19 @@ aBot = None
 qBot = None
 
 # Loading A-Bot
-if params['trainMode'] in ['sl-abot', 'rl-full-QAf'] or True:
+if params['trainMode'] in ['sl-abot', 'rl-full-QAf']:
     aBot, loadedParams, optim_state = utils.loadModel(params, 'abot')
     for key in loadedParams:
         params[key] = loadedParams[key]
     parameters.extend(aBot.parameters())
 
 # Loading Q-Bot
-if params['trainMode'] in ['sl-qbot', 'rl-full-QAf'] or True:
+if params['trainMode'] in ['sl-qbot', 'rl-full-QAf']:
     qBot, loadedParams, optim_state = utils.loadModel(params, 'qbot')
     for key in loadedParams:
         params[key] = loadedParams[key]
 
-    if (params['trainMode'] == 'rl-full-QAf' or True) and params['freezeQFeatNet']:
+    if (params['trainMode'] == 'rl-full-QAf') and params['freezeQFeatNet']:
         qBot.freezeFeatNet()
     # Filtering parameters which require a gradient update
     parameters.extend(filter(lambda p: p.requires_grad, qBot.parameters()))
@@ -107,7 +107,7 @@ print('\n%d iter per epoch.' % numIterPerEpoch)
 
 if params['useCurriculum']:
     if params['continue']:
-        rlRound = max(0, 9 - (startIterID // numIterPerEpoch))
+        rlRound = max(0, 4 - (startIterID // numIterPerEpoch))
     else:
         rlRound = params['numRounds'] - 1
 else:
@@ -125,8 +125,9 @@ def batch_iter(dataloader):
 
 
 start_t = timer()
-summary = torch.rand(1, 4096)
+
 for epochId, idx, batch in batch_iter(dataloader):
+
     # Keeping track of iterId and epoch
     iterId = startIterID + idx + (epochId * numIterPerEpoch)
     epoch = iterId // numIterPerEpoch
@@ -137,7 +138,7 @@ for epochId, idx, batch in batch_iter(dataloader):
         batch = {key: v.cuda() if hasattr(v, 'cuda')
                  else v for key, v in batch.items()}
 
-    # summary = Variable(batch['summ_feat'], requires_grad=False)
+    summary = Variable(batch['summary'], requires_grad=False)
     document = Variable(batch['doc'], requires_grad=False)
     documentLens = Variable(batch['doc_len'], requires_grad=False)
     gtQuestions = Variable(batch['ques'], requires_grad=False)
@@ -160,7 +161,7 @@ for epochId, idx, batch in batch_iter(dataloader):
     predFeatures = None
     initialGuess = None
     numRounds = params['numRounds']
-    numRounds = 5
+    numRounds = 2
 
     if aBot:
         aBot.train(), aBot.reset()
@@ -171,8 +172,11 @@ for epochId, idx, batch in batch_iter(dataloader):
         qBot.observe(-1, document=document, documentLens=documentLens)
 
     # Q-Bot summary feature regression ('guessing') only occurs if Q-Bot is present
-    if params['trainMode'] in ['sl-qbot', 'rl-full-QAf'] or True:
-        initialGuess = qBot.predictSummary()
+    if params['trainMode'] in ['sl-qbot', 'rl-full-QAf']:
+        try:
+            initialGuess = qBot.predictSummary()
+        except:
+            pass
         prevFeatDist = mse_criterion(initialGuess, summary)
         featLoss += torch.mean(prevFeatDist)
         prevFeatDist = torch.mean(prevFeatDist, 1)
@@ -184,14 +188,14 @@ for epochId, idx, batch in batch_iter(dataloader):
         # A-Bot dialog model
         forwardABot = (params['trainMode'] == 'sl-abot'
                        or (params['trainMode'] == 'rl-full-QAf'
-                           and round < rlRound)) or True
+                           and round < rlRound))
         # Q-Bot dialog model
         forwardQBot = (params['trainMode'] == 'sl-qbot'
                        or (params['trainMode'] == 'rl-full-QAf'
-                           and round < rlRound)) or True
+                           and round < rlRound))
         # Q-Bot feature regression network
         forwardFeatNet = (
-            forwardQBot or params['trainMode'] == 'rl-full-QAf') or True
+            forwardQBot or params['trainMode'] == 'rl-full-QAf')
 
         # Answerer Forward Pass
         if forwardABot:
@@ -236,9 +240,8 @@ for epochId, idx, batch in batch_iter(dataloader):
             # Make an summary prediction after each round
             try:
                 predFeatures = qBot.predictSummary()
-                print('predicted')
             except:
-                print('cant predict')
+                pass
             featDist = mse_criterion(predFeatures, summary)
             featDist = torch.mean(featDist)
             featLoss += featDist
@@ -250,18 +253,24 @@ for epochId, idx, batch in batch_iter(dataloader):
             qBot.observe(round, ques=questions, quesLens=quesLens)
             aBot.observe(round, ques=questions, quesLens=quesLens)
             answers, ansLens = aBot.forwardDecode(inference='sample')
+            print('*********************')
+            print(answers)
+            print(questions)
+            print('********************')
             aBot.observe(round, ans=answers, ansLens=ansLens)
             qBot.observe(round, ans=answers, ansLens=ansLens)
 
             # Q-Bot makes a guess at the end of each round
-            predFeatures = qBot.predictSummary()
+            try:
+                predFeatures = qBot.predictSummary()
+            except:
+                print('didnt predict')
+                pass
 
             # Computing reward based on Q-Bot's predicted summary
             featDist = mse_criterion(predFeatures, summary)
             featDist = torch.mean(featDist, 1)
-
             reward = prevFeatDist.detach() - featDist
-            print('reward %s' % reward)
             prevFeatDist = featDist
 
             qBotRLLoss = qBot.reinforce(reward)
@@ -301,8 +310,8 @@ for epochId, idx, batch in batch_iter(dataloader):
 
     # RL Annealing: Every epoch after the first, decrease rlRound
     if iterId % numIterPerEpoch == 0 and iterId > 0:
-        if params['trainMode'] == 'rl-full-QAf' or True:
-            rlRound = max(0, rlRound - 1)
+        if params['trainMode'] == 'rl-full-QAf':
+            rlRound = max(1, rlRound - 1)
             print('Using rl starting at round {}'.format(rlRound))
 
     # Print every now and then

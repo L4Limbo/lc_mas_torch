@@ -11,7 +11,7 @@ def readCommandLine(argv=None):
 
     # -------------------------------------------------------------------------
     # Data input settings
-    parser.add_argument('-inputSumm', default='data/processed_data/data_summ.h5',
+    parser.add_argument('-inputSumm', default='data/processed_data/summ.json',
                         help='HDF5 file with summary features')
     parser.add_argument('-inputQues', default='data/processed_data/processed_data.h5',
                         help='HDF5 file with preprocessed questions')

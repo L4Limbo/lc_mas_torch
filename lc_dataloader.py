@@ -25,7 +25,7 @@ class LCDataset(Dataset):
         self.useAnswer = True
         self.useOptions = True
         self.useHistory = True
-        self.useSumm = False
+        self.useSumm = True
 
         # Absorb parameters
         for key, value in iteritems(params):
@@ -60,14 +60,15 @@ class LCDataset(Dataset):
         print('Dataloader loading h5 file: ' + self.inputQues)
         quesFile = h5py.File(self.inputQues, 'r')
 
-        # if self.useSumm:
-        #     # Read summarys
-        #     print('Dataloader loading h5 file: ' + self.inputSumm)
-        #     summFile = h5py.File(self.inputSumm, 'r')
-
         # Number of data points in each split (train/val/test)
         self.numDataPoints = {}
         self.data = {}
+
+        if self.useSumm:
+            # Read summarys
+            print('Dataloader loading json file: ' + self.inputSumm)
+            self.summFile = json.load(open(self.inputSumm))
+            self.data['summ'] = self.summFile
 
         # map from load to save labels
         ioMap = {
@@ -99,7 +100,8 @@ class LCDataset(Dataset):
                 self.data[saveLabel % dtype] = torch.from_numpy(dataMat)
 
             # Read summary features, if needed
-            # if self.useSumm:
+            if self.useSumm:
+                self.data['summ'] = self.summFile
             #     print('Reading summary features...')
             #     summFeats = np.array(summFile['summarys_' + dtype])
 
@@ -155,11 +157,11 @@ class LCDataset(Dataset):
         else:
             self._split = subsets[0]
 
-    @property
+    @ property
     def split(self):
         return self._split
 
-    @split.setter
+    @ split.setter
     def split(self, split):
         assert split in self.subsets  # ['train', 'val', 'test']
         self._split = split
@@ -290,10 +292,10 @@ class LCDataset(Dataset):
         return self.numDataPoints[self._split]
 
     def __getitem__(self, idx):
-        try:
-            item = self.getIndexItem(self._split, idx)
-        except:
-            print('error')
+        # try:
+        item = self.getIndexItem(self._split, idx)
+        # except:
+        #     print('error in dataloader')
         return item
 
     def collate_fn(self, batch):
@@ -375,10 +377,8 @@ class LCDataset(Dataset):
             item['ans_id'] = ansId
 
         # if summary needed
-        # if self.useSumm:
-        #     item['summ_feat'] = self.data[dtype + '_summ_fv'][idx]
-        #     # item['summ_fname'] = self.data[dtype + '_summ_fnames'][idx]
-        #     if dtype + '_summ_labels' in self.data:
-        #         item['summ_label'] = self.data[dtype + '_summ_labels'][idx]
+        if self.useSumm:
+            summ = torch.tensor(self.data['summ'][str(idx)])
+            item['summary'] = summ
 
         return item

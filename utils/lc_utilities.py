@@ -205,6 +205,9 @@ def dynamicRNN(rnnModel,
     sortedLen, fwdOrder, bwdOrder = getSortedOrder(seqLens)
     sortedSeqInput = seqInput.index_select(dim=0, index=fwdOrder)
 
+    if sortedLen == [0]:
+        sortedLen = [5]
+
     packedSeqInput = pack_padded_sequence(
         sortedSeqInput, lengths=sortedLen, batch_first=True)
 
@@ -288,6 +291,7 @@ def concatPaddedSequences(seq1, seqLens1, seq2, seqLens2, padding='right'):
         len_2 = seqLens2[b_idx].data.item()
 
         cat_len_ = len_1 + len_2
+
         if cat_len_ == 0:
             raise RuntimeError("Both input sequences are empty")
 
