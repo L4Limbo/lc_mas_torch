@@ -97,10 +97,6 @@ def split_data(json_data, train_path, val_path, test_path):
     val_data['data']['dialogs'] = json_data['data']['dialogs'][92:124]
     test_data['data']['dialogs'] = json_data['data']['dialogs'][124:]
 
-    print(len(train_data['data']['dialogs']))
-    print(len(val_data['data']['dialogs']))
-    print(len(test_data['data']['dialogs']))
-
     with open(train_path, 'w') as jsonFile:
         jsonFile.write(json.dumps(train_data, indent=4))
 
@@ -193,6 +189,36 @@ def create_data_mats(data_toks, ques_inds, ans_inds, dtype):
     return documents, document_len, questions, question_len, answers, answer_len, options, options_list, options_len, answer_index, summary_index, summary_list, num_rounds_list
 
 
+def tokenize_summaries():
+    summ_path = './generated_data/summary_dataset.json'
+    json_data = json.load(open(summ_path))
+    res, word_counts_summ = {}, {}
+
+    for key in json_data.keys():
+        res[key] = word_tokenize(json_data[key])
+
+    for key in res.keys():
+        for word in res[key]:
+            word_counts_summ[word] = word_counts_summ.get(word, 0) + 1
+
+    return res, word_counts_summ
+
+
+def tokenize_documents():
+    doc_path = './generated_data/gen_dataset.json'
+    json_data = json.load(open(doc_path))
+    res, word_counts_docs = {}, {}
+
+    for dialog in json_data['data']['dialogs']:
+        res[dialog['summary']] = word_tokenize(dialog['document'])
+
+    for key in res.keys():
+        for word in res[key]:
+            word_counts_docs[word] = word_counts_docs.get(word, 0) + 1
+
+    return res, word_counts_docs
+
+
 if __name__ == "__main__":
 
     print('Preprocessing ...')
@@ -225,15 +251,30 @@ if __name__ == "__main__":
     data_test_toks, ques_test_toks, ans_test_toks, word_counts_test = tokenize_data(
         data_test, True)
 
+    print('Parsing and Tokenizing summaries')
+    summaries_data_toks, word_counts_summ = tokenize_summaries()
+
+    print('Parsing and Tokenizing documents')
+    documents_data_toks, word_counts_docs = tokenize_documents()
+
     print('Building vocabulary...')
+
     word_counts_all = dict(word_counts_train)
     word_counts_all.update(dict(word_counts_val))
     word_counts_all.update(dict(word_counts_test))
+    word_counts_all.update(dict(word_counts_summ))
+    word_counts_all.update(dict(word_counts_docs))
 
     for word, count in word_counts_val.items():
         word_counts_all[word] = word_counts_all.get(word, 0) + count
 
     for word, count in word_counts_test.items():
+        word_counts_all[word] = word_counts_all.get(word, 0) + count
+
+    for word, count in word_counts_summ.items():
+        word_counts_all[word] = word_counts_all.get(word, 0) + count
+
+    for word, count in word_counts_docs.items():
         word_counts_all[word] = word_counts_all.get(word, 0) + count
 
     word_counts_all['UNK'] = 5
