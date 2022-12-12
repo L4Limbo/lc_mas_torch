@@ -87,10 +87,10 @@ def readCommandLine(argv=None):
     parser.add_argument('-minLRate', default=5e-5, type=float,
                         help='Minimum learning rate')
     parser.add_argument('-dropout', default=0.0, type=float, help='Dropout')
-    parser.add_argument('-numEpochs', default=40, type=int, help='Epochs')
-    parser.add_argument('-lrDecayRate', default=0.9997592083, type=float,
+    parser.add_argument('-numEpochs', default=50, type=int, help='Epochs')
+    parser.add_argument('-lrDecayRate', default=0.999962372474343, type=float,
                         help='Decay for learning rate')
-    parser.add_argument('-CELossCoeff', default=200, type=float,
+    parser.add_argument('-CELossCoeff', default=1, type=float,
                         help='Coefficient for cross entropy loss')
     parser.add_argument('-featLossCoeff', default=1000, type=float,
                         help='Coefficient for feature regression loss')
