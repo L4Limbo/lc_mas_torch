@@ -59,7 +59,7 @@ def loadModel(params, agent='abot', overwrite=False):
     # should be everything used in encoderParam, decoderParam below
     encoderOptions = [
         'encoder', 'vocabSize', 'embedSize', 'rnnHiddenSize', 'numLayers',
-        'useHistory', 'useSumm', 'summEmbedSize', 'summFeatureSize', 'numRounds',
+        'useHistory', 'numRounds',
         'dropout'
     ]
     decoderOptions = [
@@ -138,12 +138,11 @@ def loadModel(params, agent='abot', overwrite=False):
         encoderParam['type'] = params['qencoder']
         decoderParam['type'] = params['qdecoder']
         encoderParam['isAnswerer'] = False
-        encoderParam['useSumm'] = False
         from lc.models.lc_questioner import Questioner
         model = Questioner(
             encoderParam,
             decoderParam,
-            summFeatureSize=encoderParam['summFeatureSize'])
+            summFeatureSize=40)
 
     if params['useGPU']:
         model.cuda()

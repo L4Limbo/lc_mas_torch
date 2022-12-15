@@ -3,11 +3,12 @@ import torch.nn as nn
 from lc.models.agent import Agent
 import lc.models.encoders.lc_hre as hre_enc
 import lc.models.decoders.lc_gen as gen_dec
+import lc.models.decoders.lc_summ as summ_dec
 from utils import lc_utilities as utils
 
 
 class Questioner(Agent):
-    def __init__(self, encoderParam, decoderParam, summFeatureSize=0,
+    def __init__(self, encoderParam, decoderParam, summFeatureSize=40,
                  verbose=1):
         '''
             Q-Bot Model
@@ -39,14 +40,12 @@ class Questioner(Agent):
         else:
             raise Exception('Unkown decoder {}'.format(self.decType))
 
+        # Summary Generation Decoder
+        self.summGen = summ_dec.SummaryDecoder(**decoderParam)
+        self.summGen.wordEmbed = self.encoder.wordEmbed
+
         # Share word embedding parameters between encoder and decoder
         self.decoder.wordEmbed = self.encoder.wordEmbed
-
-        # Setup feature regressor
-        if self.summFeatureSize:
-            self.featureNet = nn.Linear(self.rnnHiddenSize,
-                                        self.summFeatureSize)
-            self.featureNetInputDropout = nn.Dropout(0.5)
 
         # Initialize weights
         utils.initializeWeights(self.encoder)
@@ -112,18 +111,23 @@ class Questioner(Agent):
             maxSeqLen=maxSeqLen,
             inference=inference,
             beamSize=beamSize)
+
         return questions, quesLens
 
-    def predictSummary(self):
+    def predictSummary(self, inference='sample', beamSize=1, maxSeqLen=40):
         '''
         Predict/guess an fc7 vector given the current conversation history. This can
         be called at round 0 after the document is observed, and at end of every round
         (after a response from A-Bot is observed).
         '''
-        encState = self.encoder()
-        # h, c from lstm
-        h, c = encState
-        return self.featureNet(self.featureNetInputDropout(h[-1]))
+        encStates = self.encoder()
+        summary, summaryLens = self.summGen.forwardDecode(
+            encStates,
+            maxSeqLen=maxSeqLen,
+            inference=inference,
+            beamSize=beamSize)
+
+        return summary, summaryLens
 
     def reinforce(self, reward):
         # Propogate reinforce function call to decoder

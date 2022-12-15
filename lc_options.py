@@ -48,7 +48,7 @@ def readCommandLine(argv=None):
                         help='Seed for random number generators')
     parser.add_argument('-summEmbedSize', default=300, type=int,
                         help='Size of the multimodal embedding')
-    parser.add_argument('-summFeatureSize', default=4096, type=int,
+    parser.add_argument('-summFeatureSize', default=40, type=int,
                         help='Size of the summary feature')
     parser.add_argument('-embedSize', default=300, type=int,
                         help='Size of input word embeddings')

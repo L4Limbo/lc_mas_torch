@@ -165,12 +165,15 @@ for epochId, idx, batch in batch_iter(dataloader):
 
     if aBot:
         aBot.train(), aBot.reset()
-        aBot.observe(-1, summary=summary, document=document,
+        aBot.observe(-1, document=document,
                      documentLens=documentLens)
     if qBot:
         qBot.train(), qBot.reset()
         qBot.observe(-1, document=document, documentLens=documentLens)
 
+    print(qBot.predictSummary())
+    print(summary)
+    exit()
     # Q-Bot summary feature regression ('guessing') only occurs if Q-Bot is present
     if params['trainMode'] in ['sl-qbot', 'rl-full-QAf']:
         try:
