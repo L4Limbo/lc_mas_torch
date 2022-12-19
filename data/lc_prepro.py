@@ -206,6 +206,8 @@ def tokenize_summaries():
 
     for key in json_data.keys():
         res[key] = word_tokenize(json_data[key])
+        while len(res[key]) < 40:
+            res[key].append(' ')
 
     for key in res.keys():
         for word in res[key]:

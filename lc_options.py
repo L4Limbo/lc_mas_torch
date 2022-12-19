@@ -48,11 +48,11 @@ def readCommandLine(argv=None):
                         help='Seed for random number generators')
     parser.add_argument('-summEmbedSize', default=300, type=int,
                         help='Size of the multimodal embedding')
-    parser.add_argument('-summFeatureSize', default=4096, type=int,
+    parser.add_argument('-summFeatureSize', default=40, type=int,
                         help='Size of the summary feature')
     parser.add_argument('-embedSize', default=300, type=int,
                         help='Size of input word embeddings')
-    parser.add_argument('-rnnHiddenSize', default=512, type=int,
+    parser.add_argument('-rnnHiddenSize', default=64, type=int,
                         help='Size of the LSTM state')
     parser.add_argument('-numLayers', default=2, type=int,
                         help='Number of layers in LSTM')
@@ -79,7 +79,7 @@ def readCommandLine(argv=None):
                         choices=['sl-abot', 'sl-qbot', 'rl-full-QAf'])
     parser.add_argument('-numRounds', default=5, type=int,
                         help='Number of rounds of dialog (max 10)')
-    parser.add_argument('-batchSize', default=1, type=int,
+    parser.add_argument('-batchSize', default=4, type=int,
                         help='Batch size (number of threads) '
                         '(Adjust base on GPU memory)')
     parser.add_argument('-learningRate', default=1e-3, type=float,
@@ -92,7 +92,7 @@ def readCommandLine(argv=None):
                         help='Decay for learning rate')
     parser.add_argument('-CELossCoeff', default=1, type=float,
                         help='Coefficient for cross entropy loss')
-    parser.add_argument('-featLossCoeff', default=1000, type=float,
+    parser.add_argument('-featLossCoeff', default=1, type=float,
                         help='Coefficient for feature regression loss')
     parser.add_argument('-useCurriculum', default=1, type=int,
                         help='Use curriculum or for RL training (1) or not (0)')

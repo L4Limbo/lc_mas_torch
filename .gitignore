@@ -11,6 +11,7 @@ checkpoints
 
 # Dialog output dumps
 dialog_output/results
+word2vec/
 
 # IPython Notebook
 .ipynb_checkpoints

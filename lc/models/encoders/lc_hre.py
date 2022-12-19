@@ -12,9 +12,6 @@ class Encoder(nn.Module):
                  embedSize,
                  rnnHiddenSize,
                  numLayers,
-                 useSumm,
-                 summEmbedSize,
-                 summFeatureSize,
                  numRounds,
                  isAnswerer,
                  dropout=0,
@@ -27,12 +24,7 @@ class Encoder(nn.Module):
         self.rnnHiddenSize = rnnHiddenSize
         self.numLayers = numLayers
         assert self.numLayers > 1, "Less than 2 layers not supported!"
-        if useSumm:
-            self.useSumm = useSumm if useSumm != True else 'early'
-        else:
-            self.useSumm = False
-        self.summEmbedSize = summEmbedSize
-        self.summFeatureSize = summFeatureSize
+
         self.numRounds = numRounds
         self.dropout = dropout
         self.isAnswerer = isAnswerer
@@ -44,18 +36,7 @@ class Encoder(nn.Module):
             self.vocabSize, self.embedSize, padding_idx=0)
 
         # question encoder
-        # summary fuses early with words
-        if self.useSumm == 'early':
-            quesInputSize = self.embedSize + self.summEmbedSize
-            dialogInputSize = 2 * self.rnnHiddenSize
-            self.summNet = nn.Linear(self.summFeatureSize, self.summEmbedSize)
-            self.summEmbedDropout = nn.Dropout(0.5)
-        elif self.useSumm == 'late':
-            quesInputSize = self.embedSize
-            dialogInputSize = 2 * self.rnnHiddenSize + self.summEmbedSize
-            self.summNet = nn.Linear(self.summFeatureSize, self.summEmbedSize)
-            self.summEmbedDropout = nn.Dropout(0.5)
-        elif self.isAnswerer:
+        if self.isAnswerer:
             quesInputSize = self.embedSize
             dialogInputSize = 2 * self.rnnHiddenSize
         else:
@@ -84,9 +65,6 @@ class Encoder(nn.Module):
         self.batchSize = 0
 
         # Input data
-        self.summary = None
-        self.summaryEmbed = None
-
         self.documentTokens = None
         self.documentEmbed = None
         self.documentLens = None
@@ -116,7 +94,6 @@ class Encoder(nn.Module):
 
     def observe(self,
                 round,
-                summary=None,
                 document=None,
                 ques=None,
                 ans=None,
@@ -130,11 +107,7 @@ class Encoder(nn.Module):
         right-padded). Internally this alignment is changed to right-align
         for ease in computing final time step hidden states of each RNN
         '''
-        if summary is not None:
-            assert round == -1
-            self.summary = summary
-            self.summaryEmbed = None
-            self.batchSize = len(self.summary)
+
         if document is not None:
             assert round == -1
             assert documentLens is not None, "Document lengths required!"
@@ -168,10 +141,7 @@ class Encoder(nn.Module):
             embeds them so that they are not re-computed upon multiple
             calls to forward in the same round of dialog.
         '''
-        # Embed summary, occurs once per dialog
-        if self.isAnswerer and self.summaryEmbed is None:
-            self.summaryEmbed = self.summNet(
-                self.summEmbedDropout(self.summary))
+
         # Embed document, occurs once per dialog
         if self.documentEmbed is None:
             self.documentEmbed = self.wordEmbed(self.documentTokens)
@@ -214,10 +184,7 @@ class Encoder(nn.Module):
         '''Embed questions'''
         quesIn = self.questionEmbeds[qIdx]
         quesLens = self.questionLens[qIdx]
-        if self.useSumm == 'early':
-            summary = self.summaryEmbed.unsqueeze(
-                1).repeat(1, quesIn.size(1), 1)
-            quesIn = torch.cat([quesIn, summary], 2)
+
         qEmbed, states = utils.dynamicRNN(
             self.quesRNN, quesIn, quesLens, returnStates=True)
         quesRNNstates = states
@@ -227,8 +194,7 @@ class Encoder(nn.Module):
         currIns = [self.factEmbeds[histIdx][0]]
         if self.isAnswerer:
             currIns.append(self.questionRNNStates[histIdx][0])
-        if self.useSumm == 'late':
-            currIns.append(self.summaryEmbed)
+
         hist_t = torch.cat(currIns, -1)
         self.dialogRNNInputs.append(hist_t)
 
@@ -249,7 +215,7 @@ class Encoder(nn.Module):
             See notes at the end on how (H, C) are computed.
         '''
 
-        # Lazily embed input Summary, Documents, Questions and Answers
+        # Lazily embed input Documents, Questions and Answers
         self.embedInputDialog()
 
         if self.isAnswerer:

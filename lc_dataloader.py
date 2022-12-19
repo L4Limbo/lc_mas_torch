@@ -65,7 +65,7 @@ class LCDataset(Dataset):
         self.data = {}
 
         if self.useSumm:
-            # Read summarys
+            # Read summaries
             print('Dataloader loading json file: ' + self.inputSumm)
             self.summFile = json.load(open(self.inputSumm))
             self.data['summ'] = self.summFile

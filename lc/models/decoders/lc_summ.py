@@ -7,7 +7,7 @@ from torch.distributions import Categorical
 from utils import lc_utilities as utils
 
 
-class Decoder(nn.Module):
+class SummaryDecoder(nn.Module):
     def __init__(self,
                  vocabSize,
                  embedSize,
@@ -17,7 +17,7 @@ class Decoder(nn.Module):
                  endToken,
                  dropout=0,
                  **kwargs):
-        super(Decoder, self).__init__()
+        super(SummaryDecoder, self).__init__()
         self.vocabSize = vocabSize
         self.embedSize = embedSize
         self.rnnHiddenSize = rnnHiddenSize
@@ -61,15 +61,15 @@ class Decoder(nn.Module):
             outputs, _ = self.rnn(inputSeq, encStates)
             outputs = F.dropout(outputs, self.dropout, training=self.training)
             outputSize = outputs.size()
-            flatOutputs = outputs.reshape(-1, outputSize[2])
+            flatOutputs = outputs.view(-1, outputSize[2])
             flatScores = self.outNet(flatOutputs)
             flatLogProbs = self.logSoftmax(flatScores)
-            logProbs = flatLogProbs.reshape(outputSize[0], outputSize[1], -1)
+            logProbs = flatLogProbs.view(outputSize[0], outputSize[1], -1)
         return logProbs
 
     def forwardDecode(self,
                       encStates,
-                      maxSeqLen=20,
+                      maxSeqLen=40,
                       inference='sample',
                       beamSize=1):
         '''
@@ -203,36 +203,6 @@ class Decoder(nn.Module):
         samples = torch.cat(gen_samples, 1)
         return samples, sampleLens
 
-    def evalOptions(self, encStates, options, optionLens, scoringFunction):
-        '''
-        Forward pass a set of candidate options to get log probabilities
-
-        Arguments:
-            encStates : (H, C) Tuple of hidden and cell encoder states
-            options   : (batchSize, numOptions, maxSequenceLength) sized
-                        tensor with <START> and <END> tokens
-
-            scoringFunction : A function which computes negative log
-                              likelihood of a sequence (answer) given log
-                              probabilities under an RNN model. Currently
-                              utils.maskedNll is the only such function used.
-
-        Output:
-            A (batchSize, numOptions) tensor containing the score
-            of each option sentence given by the generator
-        '''
-        batchSize, numOptions, maxLen = options.size()
-        optionsFlat = options.contiguous().view(-1, maxLen)
-
-        # Reshaping H, C for each option
-        encStates = [x.unsqueeze(2).repeat(1, 1, numOptions, 1).
-                     view(self.numLayers, -1, self.rnnHiddenSize)
-                     for x in encStates]
-
-        logProbs = self.forward(encStates, inputSeq=optionsFlat)
-        scores = scoringFunction(logProbs, optionsFlat, returnScores=True)
-        return scores.view(batchSize, numOptions)
-
     def reinforce(self, reward):
         '''
         Compute loss using REINFORCE on log probabilities of tokens
@@ -246,7 +216,8 @@ class Decoder(nn.Module):
         # samples = torch.stack(self.samples, 1)
         # sampleLens = self.sampleLens - 1
         if len(self.saved_log_probs) == 0:
-            raise RuntimeError("Reinforce called without sampling in Decoder")
+            raise RuntimeError(
+                "Reinforce called without sampling in Decoder")
 
         for t, log_prob in enumerate(self.saved_log_probs):
             loss += -1 * log_prob * \
