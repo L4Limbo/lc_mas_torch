@@ -61,10 +61,10 @@ class Decoder(nn.Module):
             outputs, _ = self.rnn(inputSeq, encStates)
             outputs = F.dropout(outputs, self.dropout, training=self.training)
             outputSize = outputs.size()
-            flatOutputs = outputs.view(-1, outputSize[2])
+            flatOutputs = outputs.reshape(-1, outputSize[2])
             flatScores = self.outNet(flatOutputs)
             flatLogProbs = self.logSoftmax(flatScores)
-            logProbs = flatLogProbs.view(outputSize[0], outputSize[1], -1)
+            logProbs = flatLogProbs.reshape(outputSize[0], outputSize[1], -1)
         return logProbs
 
     def forwardDecode(self,
@@ -158,12 +158,21 @@ class Decoder(nn.Module):
             sample = sample + 1  # Incrementing all token indices by 1
 
             self.samples.append(sample)
-            seq.data[:, t + 1] = sample.data
-            # Marking spots where <END> token is generated
-            mask[:, t] = sample.data.eq(END_TOKEN_IDX)
+
+            if len(sample.data) == 1:
+                seq.data[:, t + 1] = sample.data
+                # Marking spots where <END> token is generated
+                mask[:, t] = sample.data.eq(END_TOKEN_IDX)
+
+            else:
+                dat = torch.tensor([s for s in sample.data])
+                seq.data[:, t + 1] = dat.data
+                # Marking spots where <END> token is generated
+                mask[:, t] = dat.data.eq(END_TOKEN_IDX)
 
             # Compensating for shift in <END> token index
-            sample.data.masked_fill_(mask[:, t].unsqueeze(1), self.endToken)
+            sample.data.masked_fill_(
+                mask[:, t].unsqueeze(1), self.endToken)
 
         mask[:, maxLen - 1].fill_(1)
 

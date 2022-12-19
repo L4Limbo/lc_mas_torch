@@ -6,6 +6,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.nn.utils.rnn import pack_padded_sequence
+from gensim.models import KeyedVectors
+from gensim import matutils
+import numpy as np
 
 from six import iteritems
 
@@ -341,3 +344,40 @@ def concatPaddedSequences(seq1, seqLens1, seq2, seqLens2, padding='right'):
         concat_list.append(cat_padded.unsqueeze(0))
     concat_output = torch.cat(concat_list, 0)
     return concat_output
+
+
+def reward(target, generated, word2vec, vocabulary):
+    '''
+    Calculate the reward for the generated text
+    '''
+    target = word2vec_emb(target, word2vec, vocabulary)
+    generated = word2vec_emb(generated, word2vec, vocabulary)
+
+    reward = similarity_cosine(target.mean(axis=0), generated.mean(axis=0))
+
+    return torch.tensor(1 - reward)
+
+
+def word2vec_emb(sequence, word2vec, vocabulary):
+
+    seq_tokens = []
+
+    for key in sequence:
+        try:
+            seq_tokens.append(vocabulary['ind2word'][str(key.item())])
+        except:
+            seq_tokens.append(vocabulary['ind2word']["6138"])
+
+    vectorized = []
+    for word in seq_tokens:
+        try:
+            vectorized.append(word2vec[word])
+        except:
+            vectorized.append(word2vec['UNK'])
+
+    return np.array(vectorized)
+
+
+def similarity_cosine(vec1, vec2):
+    cosine_similarity = np.dot(matutils.unitvec(vec1), matutils.unitvec(vec2))
+    return cosine_similarity

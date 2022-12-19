@@ -15,14 +15,21 @@ from torch.autograd import Variable
 import lc_options
 from lc_dataloader import LCDataset
 from torch.utils.data import DataLoader
-from eval_utils.rank_answerer import rankABot
-from eval_utils.rank_questioner import rankQBot
+from eval_utils.lc_rank_answerer import rankABot
+from eval_utils.lc_rank_questioner import rankQBot
 from utils import lc_utilities as utils
-
+from gensim.models import KeyedVectors
+import json
 
 # ---------------------------------------------------------------------------------------
 # Setup
 # ---------------------------------------------------------------------------------------
+
+print('Loading Vocabulary and Vectors')
+word2vec = KeyedVectors.load_word2vec_format(
+    'data/word2vec/GoogleNews-vectors-negative300.bin', binary=True)
+vocabulary = json.load(open('data/processed_data/processed_data.json', 'r'))
+
 
 # Read the command line options
 params = lc_options.readCommandLine()
@@ -103,6 +110,7 @@ runningLoss = None
 mse_criterion = nn.MSELoss(reduce=False)
 
 numIterPerEpoch = dataset.numDataPoints['train'] // params['batchSize']
+
 print('\n%d iter per epoch.' % numIterPerEpoch)
 
 if params['useCurriculum']:
@@ -161,7 +169,6 @@ for epochId, idx, batch in batch_iter(dataloader):
     predFeatures = None
     initialGuess = None
     numRounds = params['numRounds']
-    numRounds = 2
 
     if aBot:
         aBot.train(), aBot.reset()
@@ -171,18 +178,14 @@ for epochId, idx, batch in batch_iter(dataloader):
         qBot.train(), qBot.reset()
         qBot.observe(-1, document=document, documentLens=documentLens)
 
-    print(qBot.predictSummary())
-    print(summary)
-    exit()
     # Q-Bot summary feature regression ('guessing') only occurs if Q-Bot is present
     if params['trainMode'] in ['sl-qbot', 'rl-full-QAf']:
-        try:
-            initialGuess = qBot.predictSummary()
-        except:
-            pass
-        prevFeatDist = mse_criterion(initialGuess, summary)
-        featLoss += torch.mean(prevFeatDist)
-        prevFeatDist = torch.mean(prevFeatDist, 1)
+
+        initialGuess = qBot.predictSummary()
+
+        prevFeatDist = utils.reward(target=summary[0], generated=initialGuess[0][0][1:],
+                                    word2vec=word2vec, vocabulary=vocabulary)
+        featLoss += prevFeatDist
 
     # Iterating over dialog rounds
     for round in range(numRounds):
@@ -225,7 +228,6 @@ for epochId, idx, batch in batch_iter(dataloader):
                 round,
                 ques=gtQuestions[:, round],
                 quesLens=gtQuesLens[:, round])
-
             quesLogProbs = qBot.forward()
             # Cross Entropy (CE) Loss for Ground Truth Questions
             qBotLoss += utils.maskedNll(quesLogProbs,
@@ -238,6 +240,7 @@ for epochId, idx, batch in batch_iter(dataloader):
                 ansLens=gtAnsLens[:, round])
 
         MAX_FEAT_ROUNDS = 9
+
         # Questioner feature regression network forward pass
         if forwardFeatNet and round < MAX_FEAT_ROUNDS:
             # Make an summary prediction after each round
@@ -245,8 +248,8 @@ for epochId, idx, batch in batch_iter(dataloader):
                 predFeatures = qBot.predictSummary()
             except:
                 pass
-            featDist = mse_criterion(predFeatures, summary)
-            featDist = torch.mean(featDist)
+            featDist = utils.reward(target=summary[0], generated=predFeatures[0][0][1:],
+                                    word2vec=word2vec, vocabulary=vocabulary)
             featLoss += featDist
 
         # A-Bot and Q-Bot interacting in RL rounds
@@ -256,10 +259,6 @@ for epochId, idx, batch in batch_iter(dataloader):
             qBot.observe(round, ques=questions, quesLens=quesLens)
             aBot.observe(round, ques=questions, quesLens=quesLens)
             answers, ansLens = aBot.forwardDecode(inference='sample')
-            print('*********************')
-            print(answers)
-            print(questions)
-            print('********************')
             aBot.observe(round, ans=answers, ansLens=ansLens)
             qBot.observe(round, ans=answers, ansLens=ansLens)
 
@@ -271,8 +270,8 @@ for epochId, idx, batch in batch_iter(dataloader):
                 pass
 
             # Computing reward based on Q-Bot's predicted summary
-            featDist = mse_criterion(predFeatures, summary)
-            featDist = torch.mean(featDist, 1)
+            featDist = utils.reward(target=summary[0], generated=predFeatures[0][0][1:],
+                                    word2vec=word2vec, vocabulary=vocabulary)
             reward = prevFeatDist.detach() - featDist
             prevFeatDist = featDist
 
@@ -328,14 +327,13 @@ for epochId, idx, batch in batch_iter(dataloader):
             timeStamp, curEpoch, iterId, end_t - start_t, loss.data.item(), lRate
         ]
         start_t = end_t
-        print('---------------------------------')
+        print('Losses: ')
         print(printFormat % tuple(printInfo))
-        print('ABOT LOSS %s' % aBotLoss)
-        print('qBOT LOSS %s' % qBotLoss)
-        print('rlBOT LOSS %s' % rlLoss)
-        print('featBOT LOSS %s' % featLoss)
-        print('loss %s' % loss)
-        print('---------------------------------')
+        print('aBot loss: %s' % aBotLoss)
+        print('qBot loss: %s' % qBotLoss)
+        print('rlBot loss: %s' % rlLoss)
+        print('featBot loss: %s' % featLoss)
+        print('Total loss: %s\n' % loss)
 
     # TODO: Evaluate every epoch
     if iterId % (numIterPerEpoch // 1) == 0:
@@ -348,6 +346,52 @@ for epochId, idx, batch in batch_iter(dataloader):
             aBot.eval()
         if qBot:
             qBot.eval()
+
+    print('Validations started...')
+    # if aBot and 'ques' in batch:
+    #     print("aBot Validation:")
+
+    #     rankMetrics = rankABot(
+    #         aBot, dataset, 'val', scoringFunction=utils.maskedNll, exampleLimit=25 * params['batchSize'])
+
+    #     for metric, value in rankMetrics.items():
+    #         # plot
+    #         pass
+
+    #     if 'logProbsMean' in rankMetrics:
+    #         logProbsMean = params['CELossCoeff'] * rankMetrics[
+    #             'logProbsMean']
+    #         # plot
+
+    #         if params['trainMode'] == 'sl-abot':
+    #             valLoss = logProbsMean
+    #             # plot
+
+    # if qBot:
+    #     print("qBot Validation:")
+    #     rankMetrics, roundMetrics = rankQBot(
+    #         qBot, dataset, 'val', word2vec=word2vec, vocabulary=vocabulary)
+
+    #     for metric, value in rankMetrics.items():
+    #         # plot
+    #         pass
+
+    #     if 'logProbsMean' in rankMetrics:
+    #         logProbsMean = params['CELossCoeff'] * rankMetrics[
+    #             'logProbsMean']
+    #         # plot
+
+    #     if 'featLossMean' in rankMetrics:
+    #         featLossMean = params['featLossCoeff'] * (
+    #             rankMetrics['featLossMean'])
+    #         # plot
+
+    #     if 'logProbsMean' in rankMetrics and 'featLossMean' in rankMetrics:
+    #         if params['trainMode'] == 'sl-qbot':
+    #             valLoss = logProbsMean + featLossMean
+    #             # plot
+
+    print('Validations finished ...')
 
     # Save the model after every epoch
     if iterId % numIterPerEpoch == 0:

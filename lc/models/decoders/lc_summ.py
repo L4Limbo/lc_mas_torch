@@ -158,12 +158,21 @@ class SummaryDecoder(nn.Module):
             sample = sample + 1  # Incrementing all token indices by 1
 
             self.samples.append(sample)
-            seq.data[:, t + 1] = sample.data
-            # Marking spots where <END> token is generated
-            mask[:, t] = sample.data.eq(END_TOKEN_IDX)
+
+            if len(sample.data) == 1:
+                seq.data[:, t + 1] = sample.data
+                # Marking spots where <END> token is generated
+                mask[:, t] = sample.data.eq(END_TOKEN_IDX)
+
+            else:
+                dat = torch.tensor([s for s in sample.data])
+                seq.data[:, t + 1] = dat.data
+                # Marking spots where <END> token is generated
+                mask[:, t] = dat.data.eq(END_TOKEN_IDX)
 
             # Compensating for shift in <END> token index
-            sample.data.masked_fill_(mask[:, t].unsqueeze(1), self.endToken)
+            sample.data.masked_fill_(
+                mask[:, t].unsqueeze(1), self.endToken)
 
         mask[:, maxLen - 1].fill_(1)
 
@@ -193,6 +202,27 @@ class SummaryDecoder(nn.Module):
 
         samples = torch.cat(gen_samples, 1)
         return samples, sampleLens
+
+    def reinforce(self, reward):
+        '''
+        Compute loss using REINFORCE on log probabilities of tokens
+        sampled from decoder RNN, scaled by input 'reward'.
+
+        Note that an earlier call to forwardDecode must have been
+        made in order to have samples for which REINFORCE can be
+        applied. These samples are stored in 'self.saved_log_probs'.
+        '''
+        loss = 0
+        # samples = torch.stack(self.samples, 1)
+        # sampleLens = self.sampleLens - 1
+        if len(self.saved_log_probs) == 0:
+            raise RuntimeError(
+                "Reinforce called without sampling in Decoder")
+
+        for t, log_prob in enumerate(self.saved_log_probs):
+            loss += -1 * log_prob * \
+                (reward.detach() * (self.mask[:, t].float()))
+        return loss
 
     def beamSearchDecoder(self, initStates, beamSize, maxSeqLen):
         '''

@@ -131,4 +131,5 @@ class Questioner(Agent):
 
     def reinforce(self, reward):
         # Propogate reinforce function call to decoder
-        return self.decoder.reinforce(reward)
+
+        return 0.5 * (self.decoder.reinforce(reward) + self.summGen.reinforce(reward))
