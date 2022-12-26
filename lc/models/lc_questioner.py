@@ -129,6 +129,19 @@ class Questioner(Agent):
 
         return summary, summaryLens
 
+    def forwardSumm(self, summary):
+        '''
+        Forward pass the last observed question to compute its log
+        likelihood under the current decoder RNN state.
+        '''
+        encStates = self.encoder()
+        if len(self.questions) == 0:
+            raise Exception('Must provide question if not sampling one.')
+        decIn = summary
+
+        logProbs = self.summGen(encStates, inputSeq=decIn)
+        return logProbs
+
     def reinforce(self, reward):
         # Propogate reinforce function call to decoder
 

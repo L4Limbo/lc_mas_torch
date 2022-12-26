@@ -1,7 +1,7 @@
 import torch
 
 # static list of metrics
-metricList = ['r1', 'r5', 'r10', 'mean', 'mrr']
+metricList = ['r1', 'r5', 'mean']
 # +1 - greater the better
 # -1 - lower the better
 trends = [1, 1, 1, -1, -1, 1]

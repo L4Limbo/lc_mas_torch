@@ -6,6 +6,11 @@ import argparse
 import numpy as np
 import random
 from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+import nltk
+
+nltk.download('stopwords')
+stop_words = stopwords.words('english')
 
 
 def tokenize_data(data, word_count=False):
@@ -20,15 +25,27 @@ def tokenize_data(data, word_count=False):
     for i in data['data']['dialogs']:
         summary_id = i['summary']
         document = word_tokenize(i['document'])
-        res[summary_id] = {'document': document}
+        clear_document = []
+        for word in document:
+            if (word not in stop_words):
+                clear_document.append(word)
+        res[summary_id] = {'document': clear_document}
 
     print('Tokenizing questions...')
     ques_toks, ans_toks = [], []
     for i in data['data']['questions']:
         ques_toks.append(word_tokenize(i + '?'))
+        clear_ques = []
+        for word in ques_toks:
+            if (word not in stop_words):
+                clear_ques.append(word)
     print('Tokenizing answers...')
     for i in data['data']['answers']:
         ans_toks.append(word_tokenize(i))
+        clear_ans = []
+        for word in ans_toks:
+            if (word not in stop_words):
+                clear_ans.append(word)
 
     for i in data['data']['dialogs']:
         # last round of dialog will not have answer for test split
@@ -43,12 +60,12 @@ def tokenize_data(data, word_count=False):
         res[i['summary']]['dialog'] = i['dialog']
         if word_count == True:
             for j in range(5):
-                question = ques_toks[i['dialog'][j]['question']]
-                answer = ans_toks[i['dialog'][j]['answer']]
+                question = clear_ques[i['dialog'][j]['question']]
+                answer = clear_ans[i['dialog'][j]['answer']]
                 for word in question + answer:
                     word_counts[word] = word_counts.get(word, 0) + 1
 
-    return res, ques_toks, ans_toks, word_counts
+    return res, clear_ques, clear_ans, word_counts
 
 
 def encode_summaries(data_toks, word2ind):
@@ -206,6 +223,12 @@ def tokenize_summaries():
 
     for key in json_data.keys():
         res[key] = word_tokenize(json_data[key])
+        clear_summ = []
+        for word in res[key]:
+            if (word not in stop_words):
+                clear_summ.append(word)
+        res[key] = clear_summ
+
         while len(res[key]) < 40:
             res[key].append(' ')
 
@@ -223,6 +246,11 @@ def tokenize_documents():
 
     for dialog in json_data['data']['dialogs']:
         res[dialog['summary']] = word_tokenize(dialog['document'])
+        clear_docs = []
+        for word in res[dialog['summary']]:
+            if (word not in stop_words):
+                clear_docs.append(word)
+        res[dialog['summary']] = clear_docs
 
     for key in res.keys():
         for word in res[key]:
