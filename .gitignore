@@ -19,3 +19,7 @@ word2vec/
 # virtualenv
 venv/
 ENV/
+
+# plots
+plots/
+plot_data/

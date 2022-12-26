@@ -31,8 +31,8 @@ from datetime import datetime
 timeStamp = strftime('%d-%b-%y-%X-%a')
 print('Loading Vocabulary and Vectors')
 
-# word2vec = KeyedVectors.load_word2vec_format(
-#     'data/word2vec/GoogleNews-vectors-negative300.bin', binary=True)
+word2vec = KeyedVectors.load_word2vec_format(
+    'data/word2vec/GoogleNews-vectors-negative300.bin', binary=True)
 vocabulary = json.load(open('data/processed_data/processed_data.json', 'r'))
 
 
@@ -40,7 +40,7 @@ vocabulary = json.load(open('data/processed_data/processed_data.json', 'r'))
 params = lc_options.readCommandLine()
 
 # train modes : 'rl-full-QAf', 'sl-abot', 'sl-qbot'
-params['trainMode'] = 'sl-qbot'
+params['trainMode'] = 'rl-full-QAf'
 
 # Seed rng for reproducibility
 random.seed(params['randomSeed'])
@@ -145,6 +145,7 @@ train_vis = {
         'r2': [],
         'rl': [],
     },
+    'rounds': [],
 }
 
 abot_vis = {
@@ -292,15 +293,15 @@ for epochId, idx, batch in batch_iter(dataloader):
                 ans=gtAnswers[:, round],
                 ansLens=gtAnsLens[:, round])
 
+            predictedSummary = qBot.predictSummary()
+            summLogProbs = qBot.forwardSumm(summary=summary)
+
+            prevSummaryDist = utils.maskedNll(summLogProbs,
+                                              summary.contiguous())
+
+            summLoss += prevSummaryDist
+
         MAX_FEAT_ROUNDS = 9
-
-        predictedSummary = qBot.predictSummary()
-        summLogProbs = qBot.forwardSumm(summary=summary)
-
-        prevSummaryDist = utils.maskedNll(summLogProbs,
-                                          summary.contiguous())
-
-        summLoss += prevSummaryDist
 
         # Questioner feature regression network forward pass
         if forwardFeatNet and round < MAX_FEAT_ROUNDS:
@@ -332,13 +333,48 @@ for epochId, idx, batch in batch_iter(dataloader):
                                           summary.contiguous())
 
             # Computing reward based on Q-Bot's predicted summary
-            reward = prevSummaryDist.detach() - summaryDist
+
+            gt_summ_reward = prevSummaryDist.detach() - summaryDist
+            qa_summ_reward = utils.reward(target=torch.cat(
+                (answers[0], questions[0])), generated=predictedSummary[0][0], word2vec=word2vec, vocabulary=vocabulary)
+
+            qa_gt_summ_reward = utils.reward(generated=torch.cat(
+                (answers[0], questions[0])), target=summary[0], word2vec=word2vec, vocabulary=vocabulary)
+
+            reward = 0.8 * gt_summ_reward + 0.1 * qa_summ_reward + 0.1 * qa_gt_summ_reward
             prevSummaryDist = summaryDist
             qBotRLLoss = qBot.reinforce(reward)
             # if params['rlAbotReward']:
             aBotRLLoss = aBot.reinforce(reward)
             rlLoss += torch.mean(aBotRLLoss)
             rlLoss += torch.mean(qBotRLLoss)
+
+            if (iterId % 10 == 0):
+                train_vis['rounds'].append(
+                    {
+                        '%s_%s' % (iterId, round): {
+                            'reward': float(reward),
+                            'gt_summ_reward': float(gt_summ_reward),
+                            'qa_summ_reward': float(qa_summ_reward),
+                            'qa_gt_summ_reward': float(qa_gt_summ_reward),
+                            'aBotRLLoss': float(aBotRLLoss),
+                            'qBotRLLoss': float(qBotRLLoss),
+                            'summaryDist': float(summaryDist),
+                            'rouge_scores': {
+                                'r_qa_gt_summ': utils.rouge_scores(
+                                    target=summary[0], generated=torch.cat(
+                                        (answers[0], questions[0])), word2vec=word2vec, vocabulary=vocabulary),
+                                'r_gt_summ': utils.rouge_scores(
+                                    target=summary[0], generated=predictedSummary[0][0], word2vec=word2vec, vocabulary=vocabulary),
+                                'r_qa_summ': utils.rouge_scores(
+                                    target=torch.cat(
+                                        (answers[0], questions[0])), generated=predictedSummary[0][0], word2vec=word2vec, vocabulary=vocabulary),
+
+                            },
+
+                        }
+                    }
+                )
 
     # Loss coefficients
     rlCoeff = 1
@@ -426,19 +462,19 @@ for epochId, idx, batch in batch_iter(dataloader):
                 aBot, dataset, 'val', scoringFunction=utils.maskedNll, exampleLimit=25 * params['batchSize'])
 
             for metric, value in rankMetrics.items():
-                abot_vis[metric].append(value)
+                abot_vis[metric].append(value.astype(float))
                 pass
 
-            if 'logProbsMean' in rankMetrics:
-                logProbsMean = params['CELossCoeff'] * rankMetrics[
-                    'logProbsMean']
-                abot_vis['logProbsMean'].append(logProbsMean)
-                # plot
+            # if 'logProbsMean' in rankMetrics:
+            #     logProbsMean = params['CELossCoeff'] * rankMetrics[
+            #         'logProbsMean']
+            #     abot_vis['logProbsMean'].append(logProbsMean.astype(float))
+            #     # plot
 
-                if params['trainMode'] == 'sl-abot':
-                    valLoss = logProbsMean
-                    abot_vis['valLoss'].append(valLoss)
-                    # plot
+            #     if params['trainMode'] == 'sl-abot':
+            #         valLoss = logProbsMean
+            #         abot_vis['valLoss'].append(valLoss.astype(float))
+                # plot
 
         if qBot:
             print("qBot Validation:")
@@ -465,13 +501,13 @@ for epochId, idx, batch in batch_iter(dataloader):
 
                 # plot
 
-            if 'logProbsMean' in rankMetrics and 'featLossMean' in rankMetrics:
-                if params['trainMode'] == 'sl-qbot':
-                    valLoss = logProbsMean + featLossMean
-                    qbot_vis['valLoss'].append(valLoss.astype(float))
-                    # plot
+            # if 'logProbsMean' in rankMetrics and 'featLossMean' in rankMetrics:
+            #     if params['trainMode'] == 'sl-qbot':
+            #         valLoss = logProbsMean + featLossMean
+            #         qbot_vis['valLoss'].append(valLoss.astype(float))
+                # plot
 
-    # print('Validations finished ...')
+    print('Validations finished ...')
 
     # Save the model after every epoch
     if iterId % numIterPerEpoch == 0:
@@ -496,13 +532,22 @@ os.makedirs(path,  exist_ok=True)
 
 print('Saving data for plots ... ')
 
-with open('%s/train_vis.json' % path, 'w') as jsonFile:
-    jsonFile.write(json.dumps(train_vis, indent=4))
+try:
+    with open('%s/train_vis.json' % path, 'w') as jsonFile:
+        jsonFile.write(json.dumps(train_vis, indent=4))
+except:
+    print('didnt save train_vis')
 
-with open('%s/abot_vis.json' % path, 'w') as jsonFile:
-    jsonFile.write(json.dumps(abot_vis, indent=4))
+try:
+    with open('%s/abot_vis.json' % path, 'w') as jsonFile:
+        jsonFile.write(json.dumps(abot_vis, indent=4))
+except:
+    print('didnt save abot_vis')
 
-with open('%s/qbot_vis.json' % path, 'w') as jsonFile:
-    jsonFile.write(json.dumps(qbot_vis, indent=4))
+try:
+    with open('%s/qbot_vis.json' % path, 'w') as jsonFile:
+        jsonFile.write(json.dumps(qbot_vis, indent=4))
+except:
+    print('didnt save qbot_vis')
 
 print('Done!')
