@@ -9,6 +9,8 @@ from torch.nn.utils.rnn import pack_padded_sequence
 from gensim.models import KeyedVectors
 from gensim import matutils
 import numpy as np
+from rouge import Rouge
+from scipy import spatial
 
 from six import iteritems
 
@@ -366,18 +368,41 @@ def word2vec_emb(sequence, word2vec, vocabulary):
         try:
             seq_tokens.append(vocabulary['ind2word'][str(key.item())])
         except:
-            seq_tokens.append(vocabulary['ind2word']["6138"])
+            seq_tokens.append(vocabulary['ind2word'][list(
+                vocabulary['ind2word'].keys())[-1]])
 
     vectorized = []
     for word in seq_tokens:
         try:
             vectorized.append(word2vec[word])
         except:
-            vectorized.append(word2vec['UNK'])
+            vectorized.append(np.zeros(300,))
 
     return np.array(vectorized)
 
 
 def similarity_cosine(vec1, vec2):
-    cosine_similarity = np.dot(matutils.unitvec(vec1), matutils.unitvec(vec2))
+    cosine_similarity = spatial.distance.cosine(vec1, vec2)
     return cosine_similarity
+
+
+def rouge_scores(target, generated, word2vec, vocabulary):
+    rouge = Rouge()
+    tar = []
+    ref = []
+
+    for key in target:
+        try:
+            if vocabulary['ind2word'][str(key.item())] != 'UNK':
+                tar.append(vocabulary['ind2word'][str(key.item())])
+        except:
+            pass
+
+    for key in generated:
+        try:
+            if vocabulary['ind2word'][str(key.item())] != 'UNK':
+                ref.append(vocabulary['ind2word'][str(key.item())])
+        except:
+            pass
+
+    return rouge.get_scores(' '.join(ref), ' '.join(tar), avg=True)

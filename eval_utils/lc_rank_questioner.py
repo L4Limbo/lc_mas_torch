@@ -59,9 +59,9 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
     # enumerate all gt features and all predicted features
     gtSummFeatures = []
     # document + dialog rounds
-    roundwiseFeaturePreds = [[] for _ in range(numRounds + 1)]
+    roundwiseFeaturePreds = [[] for _ in range(numRounds)]
     logProbsAll = [[] for _ in range(numRounds)]
-    featLossAll = [[] for _ in range(numRounds + 1)]
+    featLossAll = [[] for _ in range(numRounds)]
     start_t = timer()
     for idx, batch in enumerate(dataloader):
         if idx == numBatches:
@@ -86,13 +86,18 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
         gtFeatures = Variable(batch['summary'], volatile=True)
         qBot.reset()
         qBot.observe(-1, document=document, documentLens=documentLens)
-        predFeatures = qBot.predictSummary()
+
+        # predictedSummary = qBot.predictSummary()
+        # summLogProbs = qBot.forwardSumm(summary=gtFeatures)
+
+        # featLoss = utils.maskedNll(summLogProbs,
+        #                            gtFeatures.contiguous())
         # Evaluating round 0 feature regression network
-        featLoss = utils.reward(target=gtFeatures[0], generated=predFeatures[0][0][1:],
-                                word2vec=word2vec, vocabulary=vocabulary)
-        featLossAll[0].append(torch.mean(torch.tensor(featLoss)))
+        # featLoss = utils.reward(target=gtFeatures[0], generated=summLogProbs[0][0][1:],
+        #                         word2vec=word2vec, vocabulary=vocabulary)
+        # featLossAll[0].append(torch.mean(torch.tensor(summLogProbs)))
         # Keeping round 0 predictions
-        roundwiseFeaturePreds[0].append(predFeatures)
+        # roundwiseFeaturePreds[0].append(summLogProbs)
         for round in range(numRounds):
             qBot.observe(
                 round,
@@ -105,13 +110,15 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
             logProbsAll[round].append(
                 utils.maskedNll(logProbsCurrent,
                                 gtQuestions[:, round].contiguous()))
-            predFeatures = qBot.predictSummary()
-            # Evaluating feature regression network
-            featLoss = utils.reward(target=gtFeatures[0], generated=predFeatures[0][0][1:],
-                                    word2vec=word2vec, vocabulary=vocabulary)
-            featLossAll[round + 1].append(torch.mean(torch.tensor(featLoss)))
+
+            predictedSummary = qBot.predictSummary()
+            summLogProbs = qBot.forwardSumm(summary=gtFeatures)
+
+            featLoss = utils.maskedNll(summLogProbs,
+                                       gtFeatures.contiguous())
+            featLossAll[round].append(torch.mean(torch.tensor(featLoss)))
             # Keeping predictions
-            roundwiseFeaturePreds[round + 1].append(predFeatures)
+            roundwiseFeaturePreds[round].append(summLogProbs)
         gtSummFeatures.append(gtFeatures)
 
         end_t = timer()
@@ -137,18 +144,21 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
 
     if verbose:
         print("Percentile mean rank (round, mean, low, high)")
-    for round in range(numRounds + 1):
+    for round in range(numRounds):
 
-        predFeatures = torch.stack(tuple(roundwiseFeaturePreds[round][0][0]),
+        summLogProbs = torch.stack(tuple(roundwiseFeaturePreds[round][0][0]),
                                    dim=0).data.cpu().numpy()
         # num_examples x num_examples
 
         dists = pairwise_distances(
-            predFeatures[0][:-1].reshape(-1, 1), gtFeatures[0][0].reshape(-1, 1))
+            summLogProbs[0][:-1].reshape(-1, 1), gtFeatures[0][0].reshape(-1, 1))
         ranks = []
-        for i in range(dists.shape[0]):
-            rank = int(np.where(dists[i, :].argsort() == i)[0]) + 1
-            ranks.append(rank)
+        for i in range(dists.shape[0] - 1):
+            try:
+                rank = int(np.where(dists[i, :].argsort() == i)[0])
+                ranks.append(rank)
+            except:
+                continue
         ranks = np.array(ranks)
         rankMetrics = metrics.computeMetrics(Variable(torch.from_numpy(ranks)))
         meanRank = ranks.mean()
@@ -158,14 +168,14 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
         percRankHigh = 100 * (1 - ((meanRank - se) / poolSize))
         if verbose:
             print((round, meanPercRank, percRankLow, percRankHigh))
-        rankMetrics['percentile'] = meanPercRank
-        rankMetrics['featLoss'] = roundwiseFeatLoss[round]
+        # rankMetrics['percentile'] = meanPercRank
+        rankMetrics['summLoss'] = roundwiseFeatLoss[round]
         if round < len(roundwiseLogProbs):
             rankMetrics['logProbs'] = roundwiseLogProbs[round]
         rankMetricsRounds.append(rankMetrics)
 
     rankMetricsRounds[-1]['logProbsMean'] = logProbsMean
-    rankMetricsRounds[-1]['featLossMean'] = featLossMean
+    rankMetricsRounds[-1]['summLossMean'] = featLossMean
 
     dataset.split = original_split
     return rankMetricsRounds[-1], rankMetricsRounds

@@ -52,7 +52,7 @@ def readCommandLine(argv=None):
                         help='Size of the summary feature')
     parser.add_argument('-embedSize', default=300, type=int,
                         help='Size of input word embeddings')
-    parser.add_argument('-rnnHiddenSize', default=64, type=int,
+    parser.add_argument('-rnnHiddenSize', default=256, type=int,
                         help='Size of the LSTM state')
     parser.add_argument('-numLayers', default=2, type=int,
                         help='Number of layers in LSTM')
@@ -79,7 +79,7 @@ def readCommandLine(argv=None):
                         choices=['sl-abot', 'sl-qbot', 'rl-full-QAf'])
     parser.add_argument('-numRounds', default=5, type=int,
                         help='Number of rounds of dialog (max 10)')
-    parser.add_argument('-batchSize', default=4, type=int,
+    parser.add_argument('-batchSize', default=1, type=int,
                         help='Batch size (number of threads) '
                         '(Adjust base on GPU memory)')
     parser.add_argument('-learningRate', default=1e-3, type=float,
@@ -87,7 +87,7 @@ def readCommandLine(argv=None):
     parser.add_argument('-minLRate', default=5e-5, type=float,
                         help='Minimum learning rate')
     parser.add_argument('-dropout', default=0.0, type=float, help='Dropout')
-    parser.add_argument('-numEpochs', default=50, type=int, help='Epochs')
+    parser.add_argument('-numEpochs', default=4, type=int, help='Epochs')
     parser.add_argument('-lrDecayRate', default=0.999962372474343, type=float,
                         help='Decay for learning rate')
     parser.add_argument('-CELossCoeff', default=1, type=float,
