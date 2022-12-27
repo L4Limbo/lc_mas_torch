@@ -15,6 +15,7 @@ def plot_train_vis(path):
 
             fig, ax = plt.subplots()
             ax.plot(data['iterIds'], data[key])
+            ax.set(xlabel='Iterations', ylabel=key, title='')
 
             ax.grid()
 
@@ -33,6 +34,7 @@ def plot_abot_vis(path):
                 continue
             fig, ax = plt.subplots()
             ax.plot(data['iterIds'], data[key])
+            ax.set(xlabel='Iterations', ylabel=key, title='')
 
             ax.grid()
 
@@ -51,14 +53,13 @@ def plot_qbot_vis(path):
                 continue
             fig, ax = plt.subplots()
             ax.plot(data['iterIds'], data[key])
-
+            ax.set(xlabel='Iterations', ylabel=key, title='')
             ax.grid()
 
             fig.savefig("plots/%s/qbot/%s.png" % (path, key))
 
 
 def create_plots(path):
-    path = 'json_26-12-2022_22-27-49'
     os.makedirs('./plots/%s/train/' % path,  exist_ok=True)
     os.makedirs('./plots/%s/abot/' % path,  exist_ok=True)
     os.makedirs('./plots/%s/qbot/' % path,  exist_ok=True)
@@ -66,3 +67,7 @@ def create_plots(path):
     plot_train_vis(path)
     plot_qbot_vis(path)
     plot_abot_vis(path)
+
+
+if __name__ == '__main__':
+    create_plots('json_26-12-2022_22-27-49')
