@@ -24,7 +24,12 @@ def tokenize_data(data, word_count=False):
 
     for i in data['data']['dialogs']:
         summary_id = i['summary']
-        document = word_tokenize(i['document'])
+
+        words = nltk.word_tokenize(i['document'])
+
+        words = [word.lower() for word in words if word.isalpha()]
+
+        document = word_tokenize(' '.join(words))
         clear_document = []
         for word in document:
             if (word not in stop_words):
@@ -34,14 +39,22 @@ def tokenize_data(data, word_count=False):
     print('Tokenizing questions...')
     ques_toks, ans_toks = [], []
     for i in data['data']['questions']:
-        ques_toks.append(word_tokenize(i + '?'))
+        words = nltk.word_tokenize(i)
+
+        words = [word.lower() for word in words if word.isalpha()]
+
+        ques_toks.append(word_tokenize(' '.join(words) + '?'))
         clear_ques = []
         for word in ques_toks:
             if (word not in stop_words):
                 clear_ques.append(word)
     print('Tokenizing answers...')
     for i in data['data']['answers']:
-        ans_toks.append(word_tokenize(i))
+        words = nltk.word_tokenize(i)
+
+        words = [word.lower() for word in words if word.isalpha()]
+        ans_toks.append(word_tokenize(' '.join(words)))
+
         clear_ans = []
         for word in ans_toks:
             if (word not in stop_words):
@@ -73,7 +86,7 @@ def encode_summaries(data_toks, word2ind):
 
     for key in data_toks.keys():
         res[key] = [word2ind.get(word, word2ind['UNK'])
-                    for word in data_toks[key]][:40]
+                    for word in data_toks[key]][:60]
 
     return res
 
@@ -120,9 +133,9 @@ def split_data(json_data, train_path, val_path, test_path):
     val_data['data']['answers'] = json_data['data']['answers'][:]
     test_data['data']['answers'] = json_data['data']['answers'][:]
 
-    train_data['data']['dialogs'] = json_data['data']['dialogs'][0:92]
-    val_data['data']['dialogs'] = json_data['data']['dialogs'][92:124]
-    test_data['data']['dialogs'] = json_data['data']['dialogs'][124:]
+    train_data['data']['dialogs'] = json_data['data']['dialogs'][0::1]
+    val_data['data']['dialogs'] = json_data['data']['dialogs'][::3]
+    # test_data['data']['dialogs'] = json_data['data']['dialogs'][124:]
 
     with open(train_path, 'w') as jsonFile:
         jsonFile.write(json.dumps(train_data, indent=4))
@@ -130,10 +143,10 @@ def split_data(json_data, train_path, val_path, test_path):
     with open(val_path, 'w') as jsonFile:
         jsonFile.write(json.dumps(val_data, indent=4))
 
-    with open(test_path, 'w') as jsonFile:
-        jsonFile.write(json.dumps(test_data, indent=4))
+    # with open(test_path, 'w') as jsonFile:
+    #     jsonFile.write(json.dumps(test_data, indent=4))
 
-    return train_data, val_data, test_data
+    return train_data, val_data
 
 
 def create_data_mats(data_toks, ques_inds, ans_inds, dtype):
@@ -144,7 +157,7 @@ def create_data_mats(data_toks, ques_inds, ans_inds, dtype):
     # create summary lists and document data mats
     summary_list = []
     summary_index = np.zeros(num_threads)
-    max_doc_len = 100
+    max_doc_len = 200
     documents = np.zeros([num_threads, max_doc_len])
     document_len = np.zeros(num_threads, dtype=np.int)
     summary_ids = list(data_toks.keys())
@@ -164,7 +177,7 @@ def create_data_mats(data_toks, ques_inds, ans_inds, dtype):
                      ] = data_toks[summary_id]['document_inds'][0:max_doc_len]
 
     num_rounds = 5
-    max_ques_len = 20
+    max_ques_len = 40
     max_ans_len = 40
 
     questions = np.zeros([num_threads, num_rounds, max_ques_len])
@@ -222,14 +235,18 @@ def tokenize_summaries():
     res, word_counts_summ = {}, {}
 
     for key in json_data.keys():
-        res[key] = word_tokenize(json_data[key])
+        words = nltk.word_tokenize(json_data[key])
+
+        words = [word.lower() for word in words if word.isalpha()]
+
+        res[key] = word_tokenize(' '.join(words))
         clear_summ = []
         for word in res[key]:
             if (word not in stop_words):
                 clear_summ.append(word)
         res[key] = clear_summ
 
-        while len(res[key]) < 40:
+        while len(res[key]) < 60:
             res[key].append(' ')
 
     for key in res.keys():
@@ -245,7 +262,11 @@ def tokenize_documents():
     res, word_counts_docs = {}, {}
 
     for dialog in json_data['data']['dialogs']:
-        res[dialog['summary']] = word_tokenize(dialog['document'])
+        words = nltk.word_tokenize(dialog['document'])
+
+        words = [word.lower() for word in words if word.isalpha()]
+
+        res[dialog['summary']] = word_tokenize(' '.join(words))
         clear_docs = []
         for word in res[dialog['summary']]:
             if (word not in stop_words):
@@ -280,7 +301,7 @@ if __name__ == "__main__":
 
     # Split Dataset 60 / 20 / 20
     print('Creating Splits ...')
-    data_train, data_val, data_test = split_data(
+    data_train, data_val = split_data(
         json_data, train_path, val_path, test_path)
 
     # Tokenizing
@@ -288,8 +309,8 @@ if __name__ == "__main__":
         data_train, True)
     data_val_toks, ques_val_toks, ans_val_toks, word_counts_val = tokenize_data(
         data_val, True)
-    data_test_toks, ques_test_toks, ans_test_toks, word_counts_test = tokenize_data(
-        data_test, True)
+    # data_test_toks, ques_test_toks, ans_test_toks, word_counts_test = tokenize_data(
+    #     data_test, True)
 
     print('Parsing and Tokenizing summaries')
     summaries_data_toks, word_counts_summ = tokenize_summaries()
@@ -301,15 +322,15 @@ if __name__ == "__main__":
 
     word_counts_all = dict(word_counts_train)
     word_counts_all.update(dict(word_counts_val))
-    word_counts_all.update(dict(word_counts_test))
+    # word_counts_all.update(dict(word_counts_test))
     word_counts_all.update(dict(word_counts_summ))
     word_counts_all.update(dict(word_counts_docs))
 
     for word, count in word_counts_val.items():
         word_counts_all[word] = word_counts_all.get(word, 0) + count
 
-    for word, count in word_counts_test.items():
-        word_counts_all[word] = word_counts_all.get(word, 0) + count
+    # for word, count in word_counts_test.items():
+    #     word_counts_all[word] = word_counts_all.get(word, 0) + count
 
     for word, count in word_counts_summ.items():
         word_counts_all[word] = word_counts_all.get(word, 0) + count
@@ -329,8 +350,8 @@ if __name__ == "__main__":
         data_train_toks, ques_train_toks, ans_train_toks, word2ind)
     data_val_toks, ques_val_inds, ans_val_inds = encode_vocab(
         data_val_toks, ques_val_toks, ans_val_toks, word2ind)
-    data_test_toks, ques_test_inds, ans_test_inds = encode_vocab(
-        data_test_toks, ques_test_toks, ans_test_toks, word2ind)
+    # data_test_toks, ques_test_inds, ans_test_inds = encode_vocab(
+    #     data_test_toks, ques_test_toks, ans_test_toks, word2ind)
 
     summaries_data_toks = encode_summaries(summaries_data_toks, word2ind)
     json.dump(summaries_data_toks, open('./processed_data/summ.json', 'w'))
@@ -340,8 +361,8 @@ if __name__ == "__main__":
         data_train_toks, ques_train_inds, ans_train_inds, 'train')
     documents_val, documents_val_len, questions_val, questions_val_len, answers_val, answers_val_len, options_val, options_val_list, options_val_len, answers_val_index, summarys_val_index, summarys_val_list, _ = create_data_mats(
         data_val_toks, ques_val_inds, ans_val_inds, 'val')
-    documents_test, documents_test_len, questions_test, questions_test_len, answers_test, answers_test_len, options_test, options_test_list, options_test_len, answers_test_index, summarys_test_index, summarys_test_list, num_rounds_test = create_data_mats(
-        data_test_toks, ques_test_inds, ans_test_inds, 'test')
+    # documents_test, documents_test_len, questions_test, questions_test_len, answers_test, answers_test_len, options_test, options_test_list, options_test_len, answers_test_index, summarys_test_index, summarys_test_list, num_rounds_test = create_data_mats(
+    #     data_test_toks, ques_test_inds, ans_test_inds, 'test')
 
     print('Saving hdf5...')
     f = h5py.File(output_h5, 'w')
@@ -375,21 +396,21 @@ if __name__ == "__main__":
     f.create_dataset('opt_list_val', dtype='uint32', data=options_val_list)
     f.create_dataset('summ_pos_val', dtype='uint32', data=summarys_val_index)
 
-    f.create_dataset('ques_test', dtype='uint32', data=questions_test)
-    f.create_dataset('ques_length_test', dtype='uint32',
-                     data=questions_test_len)
-    f.create_dataset('ans_test', dtype='uint32', data=answers_test)
-    f.create_dataset('ans_length_test', dtype='uint32', data=answers_test_len)
-    f.create_dataset('ans_index_test', dtype='uint32', data=answers_test_index)
-    f.create_dataset('doc_test', dtype='uint32', data=documents_test)
-    f.create_dataset('doc_length_test', dtype='uint32',
-                     data=documents_test_len)
-    f.create_dataset('opt_test', dtype='uint32', data=options_test)
-    f.create_dataset('opt_length_test', dtype='uint32', data=options_test_len)
-    f.create_dataset('opt_list_test', dtype='uint32', data=options_test_list)
-    f.create_dataset('summ_pos_test', dtype='uint32', data=summarys_test_index)
+    # f.create_dataset('ques_test', dtype='uint32', data=questions_test)
+    # f.create_dataset('ques_length_test', dtype='uint32',
+    #                  data=questions_test_len)
+    # f.create_dataset('ans_test', dtype='uint32', data=answers_test)
+    # f.create_dataset('ans_length_test', dtype='uint32', data=answers_test_len)
+    # f.create_dataset('ans_index_test', dtype='uint32', data=answers_test_index)
+    # f.create_dataset('doc_test', dtype='uint32', data=documents_test)
+    # f.create_dataset('doc_length_test', dtype='uint32',
+    #                  data=documents_test_len)
+    # f.create_dataset('opt_test', dtype='uint32', data=options_test)
+    # f.create_dataset('opt_length_test', dtype='uint32', data=options_test_len)
+    # f.create_dataset('opt_list_test', dtype='uint32', data=options_test_list)
+    # f.create_dataset('summ_pos_test', dtype='uint32', data=summarys_test_index)
 
-    f.create_dataset('num_rounds_test', dtype='uint32', data=num_rounds_test)
+    # f.create_dataset('num_rounds_test', dtype='uint32', data=num_rounds_test)
 
     f.close()
 
@@ -399,6 +420,6 @@ if __name__ == "__main__":
 
     out['unique_summ_train'] = summarys_train_list
     out['unique_summ_val'] = summarys_val_list
-    out['unique_summ_test'] = summarys_test_list
+    # out['unique_summ_test'] = summarys_test_list
 
     json.dump(out, open(output_json, 'w'))

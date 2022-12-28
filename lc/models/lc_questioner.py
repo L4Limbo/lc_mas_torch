@@ -8,7 +8,7 @@ from utils import lc_utilities as utils
 
 
 class Questioner(Agent):
-    def __init__(self, encoderParam, decoderParam, summFeatureSize=40,
+    def __init__(self, encoderParam, decoderParam, summFeatureSize=60,
                  verbose=1):
         '''
             Q-Bot Model
@@ -90,7 +90,7 @@ class Questioner(Agent):
         logProbs = self.decoder(encStates, inputSeq=decIn)
         return logProbs
 
-    def forwardDecode(self, inference='sample', beamSize=1, maxSeqLen=20):
+    def forwardDecode(self, inference='sample', beamSize=1, maxSeqLen=40):
         '''
         Decode a sequence (question) using either sampling or greedy inference.
         A question is decoded given current state (dialog history). This can

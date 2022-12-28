@@ -48,7 +48,7 @@ def readCommandLine(argv=None):
                         help='Seed for random number generators')
     parser.add_argument('-summEmbedSize', default=300, type=int,
                         help='Size of the multimodal embedding')
-    parser.add_argument('-summFeatureSize', default=40, type=int,
+    parser.add_argument('-summFeatureSize', default=60, type=int,
                         help='Size of the summary feature')
     parser.add_argument('-embedSize', default=300, type=int,
                         help='Size of input word embeddings')
@@ -87,7 +87,7 @@ def readCommandLine(argv=None):
     parser.add_argument('-minLRate', default=5e-5, type=float,
                         help='Minimum learning rate')
     parser.add_argument('-dropout', default=0.0, type=float, help='Dropout')
-    parser.add_argument('-numEpochs', default=4, type=int, help='Epochs')
+    parser.add_argument('-numEpochs', default=10, type=int, help='Epochs')
     parser.add_argument('-lrDecayRate', default=0.999962372474343, type=float,
                         help='Decay for learning rate')
     parser.add_argument('-CELossCoeff', default=1, type=float,
@@ -108,7 +108,7 @@ def readCommandLine(argv=None):
 
     # -------------------------------------------------------------------------
     # Evaluation params
-    parser.add_argument('-beamSize', default=1, type=int,
+    parser.add_argument('-beamSize', default=5, type=int,
                         help='Beam width for beam-search sampling')
     parser.add_argument('-evalModeList', default=[], nargs='+',
                         help='What task should the evaluator perform?',

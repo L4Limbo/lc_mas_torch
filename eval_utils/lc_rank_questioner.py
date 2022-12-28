@@ -87,17 +87,7 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
         qBot.reset()
         qBot.observe(-1, document=document, documentLens=documentLens)
 
-        # predictedSummary = qBot.predictSummary()
-        # summLogProbs = qBot.forwardSumm(summary=gtFeatures)
-
-        # featLoss = utils.maskedNll(summLogProbs,
-        #                            gtFeatures.contiguous())
-        # Evaluating round 0 feature regression network
-        # featLoss = utils.reward(target=gtFeatures[0], generated=summLogProbs[0][0][1:],
-        #                         word2vec=word2vec, vocabulary=vocabulary)
-        # featLossAll[0].append(torch.mean(torch.tensor(summLogProbs)))
-        # Keeping round 0 predictions
-        # roundwiseFeaturePreds[0].append(summLogProbs)
+        rouge_scores = []
         for round in range(numRounds):
             qBot.observe(
                 round,
@@ -106,13 +96,16 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
             qBot.observe(
                 round, ans=answers[:, round], ansLens=ansLens[:, round])
             logProbsCurrent = qBot.forward()
-            # Evaluating logProbs for cross entropy
+
             logProbsAll[round].append(
                 utils.maskedNll(logProbsCurrent,
                                 gtQuestions[:, round].contiguous()))
 
             predictedSummary = qBot.predictSummary()
             summLogProbs = qBot.forwardSumm(summary=gtFeatures)
+
+            rouge_scores.append(utils.rouge_scores(
+                target=gtFeatures[0], generated=predictedSummary[0][0], word2vec=word2vec, vocabulary=vocabulary))
 
             featLoss = utils.maskedNll(summLogProbs,
                                        gtFeatures.contiguous())
@@ -168,7 +161,7 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
         percRankHigh = 100 * (1 - ((meanRank - se) / poolSize))
         if verbose:
             print((round, meanPercRank, percRankLow, percRankHigh))
-        # rankMetrics['percentile'] = meanPercRank
+        rankMetrics['percentile'] = meanPercRank
         rankMetrics['summLoss'] = roundwiseFeatLoss[round]
         if round < len(roundwiseLogProbs):
             rankMetrics['logProbs'] = roundwiseLogProbs[round]
@@ -176,6 +169,7 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
 
     rankMetricsRounds[-1]['logProbsMean'] = logProbsMean
     rankMetricsRounds[-1]['summLossMean'] = featLossMean
+    rankMetricsRounds[-1]['rouge'] = rouge_scores
 
     dataset.split = original_split
     return rankMetricsRounds[-1], rankMetricsRounds

@@ -1,3 +1,4 @@
+import lc_plotter
 import os
 import gc
 import random
@@ -49,7 +50,7 @@ if params['useGPU']:
     torch.cuda.manual_seed_all(params['randomSeed'])
 
 # Setup dataloader
-splits = ['train', 'val', 'test']
+splits = ['train', 'val']
 
 dataset = LCDataset(params, splits)
 
@@ -152,6 +153,7 @@ abot_vis = {
     'iterIds': [],
     'r1': [],
     'r5': [],
+    'r10': [],
     'mean': [],
     'mrr': [],
     'logProbsMean': [],
@@ -164,16 +166,13 @@ qbot_vis = {
     'r5': [],
     'mean': [],
     'mrr': [],
+    'percentile': [],
     'logProbsMean': [],
     'summLossMean': [],
     'logProbs': [],
     'summLoss': [],
     'valLoss': [],
-    'rouges': {
-        'r1': [],
-        'r2': [],
-        'rl': [],
-    }
+    'rouge': [],
 }
 
 # ---------------------------------------------------------------------------------------
@@ -286,19 +285,17 @@ for epochId, idx, batch in batch_iter(dataloader):
             # Cross Entropy (CE) Loss for Ground Truth Questions
             qBotLoss += utils.maskedNll(quesLogProbs,
                                         gtQuestions[:, round].contiguous())
-
             # Observe GT answer for updating dialog history
             qBot.observe(
                 round,
                 ans=gtAnswers[:, round],
                 ansLens=gtAnsLens[:, round])
 
-            predictedSummary = qBot.predictSummary()
+            predictedSummaryGreedy = qBot.predictSummary(inference='greedy')
+            predictedSummarySample = qBot.predictSummary(inference='sample')
             summLogProbs = qBot.forwardSumm(summary=summary)
-
             prevSummaryDist = utils.maskedNll(summLogProbs,
                                               summary.contiguous())
-
             summLoss += prevSummaryDist
 
         MAX_FEAT_ROUNDS = 9
@@ -306,13 +303,12 @@ for epochId, idx, batch in batch_iter(dataloader):
         # Questioner feature regression network forward pass
         if forwardFeatNet and round < MAX_FEAT_ROUNDS:
             # Make an summary prediction after each round
-            predictedSummary = qBot.predictSummary()
+            predictedSummaryGreedy = qBot.predictSummary(inference='greedy')
+            predictedSummarySample = qBot.predictSummary(inference='sample')
             summLogProbs = qBot.forwardSumm(summary=summary)
             summaryDist = utils.maskedNll(summLogProbs,
                                           summary.contiguous())
             summLoss += summaryDist
-            # featDist = utils.reward(target=summary[0], generated=predFeatures[0][0][1:],
-            #                         word2vec=word2vec, vocabulary=vocabulary)
 
         # A-Bot and Q-Bot interacting in RL rounds
         if (params['trainMode'] == 'rl-full-QAf') and round >= rlRound:
@@ -326,22 +322,33 @@ for epochId, idx, batch in batch_iter(dataloader):
 
             # Q-Bot makes a guess at the end of each round
             # predSummary = qBot.predictSummary()
-            predictedSummary = qBot.predictSummary()
+            predictedSummaryGreedy = qBot.predictSummary(inference='greedy')
+            predictedSummarySample = qBot.predictSummary(inference='sample')
+
+            reward_greedy = utils.reward(
+                generated=predictedSummaryGreedy[0], target=summary[0], word2vec=word2vec, vocabulary=vocabulary)
+            reward_sample = utils.reward(
+                generated=predictedSummarySample[0], target=summary[0], word2vec=word2vec, vocabulary=vocabulary)
+
             summLogProbs = qBot.forwardSumm(summary=summary)
+
+            summaryDistRL = utils.maskedNll(summLogProbs,
+                                            torch.tensor([list(torch.cat(
+                                                (answers[0], questions[0])))]))
 
             summaryDist = utils.maskedNll(summLogProbs,
                                           summary.contiguous())
 
             # Computing reward based on Q-Bot's predicted summary
 
-            gt_summ_reward = prevSummaryDist.detach() - summaryDist
-            qa_summ_reward = utils.reward(target=torch.cat(
-                (answers[0], questions[0])), generated=predictedSummary[0][0], word2vec=word2vec, vocabulary=vocabulary)
+            # gt_summ_reward = prevSummaryDist.detach() - summaryDist
+            # qa_summ_reward = utils.reward(target=torch.cat(
+            #     (answers[0], questions[0])), generated=predictedSummary[0][0], word2vec=word2vec, vocabulary=vocabulary)
 
-            qa_gt_summ_reward = utils.reward(generated=torch.cat(
-                (answers[0], questions[0])), target=summary[0], word2vec=word2vec, vocabulary=vocabulary)
-
-            reward = 0.8 * gt_summ_reward + 0.1 * qa_summ_reward + 0.1 * qa_gt_summ_reward
+            # qa_gt_summ_reward = utils.reward(generated=torch.cat(
+            #     (answers[0], questions[0])), target=summary[0], word2vec=word2vec, vocabulary=vocabulary)
+            reward = 0.9 * summaryDistRL + 0.1 * summaryDist
+            # reward = 0.8 * gt_summ_reward + 0.1 * qa_summ_reward + 0.1 * qa_gt_summ_reward
             prevSummaryDist = summaryDist
             qBotRLLoss = qBot.reinforce(reward)
             # if params['rlAbotReward']:
@@ -354,21 +361,22 @@ for epochId, idx, batch in batch_iter(dataloader):
                     {
                         '%s_%s' % (iterId, round): {
                             'reward': float(reward),
-                            'gt_summ_reward': float(gt_summ_reward),
-                            'qa_summ_reward': float(qa_summ_reward),
-                            'qa_gt_summ_reward': float(qa_gt_summ_reward),
+                            'summaryDistRL': float(summaryDistRL),
+                            'summaryDist': float(summaryDist),
+                            'reward_greedy': float(reward_greedy),
+                            'reward_sample': float(reward_sample),
                             'aBotRLLoss': float(aBotRLLoss),
                             'qBotRLLoss': float(qBotRLLoss),
                             'summaryDist': float(summaryDist),
                             'rouge_scores': {
-                                'r_qa_gt_summ': utils.rouge_scores(
+                                'r_qa_summ': utils.rouge_scores(
                                     target=summary[0], generated=torch.cat(
                                         (answers[0], questions[0])), word2vec=word2vec, vocabulary=vocabulary),
-                                'r_gt_summ': utils.rouge_scores(
-                                    target=summary[0], generated=predictedSummary[0][0], word2vec=word2vec, vocabulary=vocabulary),
-                                'r_qa_summ': utils.rouge_scores(
+                                'r_qa_summ_s': utils.rouge_scores(
+                                    target=summary[0], generated=predictedSummarySample[0][0], word2vec=word2vec, vocabulary=vocabulary),
+                                'r_qa_summ_g': utils.rouge_scores(
                                     target=torch.cat(
-                                        (answers[0], questions[0])), generated=predictedSummary[0][0], word2vec=word2vec, vocabulary=vocabulary),
+                                        (answers[0], questions[0])), generated=predictedSummaryGreedy[0][0], word2vec=word2vec, vocabulary=vocabulary),
 
                             },
 
@@ -423,14 +431,14 @@ for epochId, idx, batch in batch_iter(dataloader):
         ]
         start_t = end_t
         # plots
-        print('[-----------------------------]')
-        print('Losses: ')
+        # print('[-----------------------------]')
+        # print('Losses: ')
         print(printFormat % tuple(printInfo))
-        print('aBot loss: %s' % aBotLoss)
-        print('qBot loss: %s' % qBotLoss)
-        print('rlBot loss: %s' % rlLoss)
-        print('summBot loss: %s' % summLoss)
-        print('Total loss: %s\n' % loss)
+        # print('aBot loss: %s' % aBotLoss)
+        # print('qBot loss: %s' % qBotLoss)
+        # print('rlBot loss: %s' % rlLoss)
+        # print('summBot loss: %s' % summLoss)
+        # print('Total loss: %s\n' % loss)
 
         train_vis['iterIds'].append(iterId)
 
@@ -440,10 +448,10 @@ for epochId, idx, batch in batch_iter(dataloader):
         train_vis['summLoss'].append(float(summLoss))
         train_vis['loss'].append(float(loss))
         train_vis['runningLoss'].append(float(runningLoss))
-        print('[-----------------------------]\n')
+        # print('[-----------------------------]\n')
 
     # TODO: Evaluate every epoch
-    print('Epoch validations ...')
+    # print('Epoch validations ...')
     if iterId % (numIterPerEpoch // 1) == 0:
         # Keeping track of epochID
         curEpoch = float(iterId) / numIterPerEpoch
@@ -456,35 +464,25 @@ for epochId, idx, batch in batch_iter(dataloader):
             qBot.eval()
 
         if aBot and 'ques' in batch:
-            print("aBot Validation:")
+            # print("aBot Validation:")
             abot_vis['iterIds'].append(iterId)
             rankMetrics = rankABot(
-                aBot, dataset, 'val', scoringFunction=utils.maskedNll, exampleLimit=25 * params['batchSize'])
+                aBot, dataset, 'val', scoringFunction=utils.maskedNll, exampleLimit=32 * params['batchSize'])
 
             for metric, value in rankMetrics.items():
                 abot_vis[metric].append(value.astype(float))
-                pass
-
-            # if 'logProbsMean' in rankMetrics:
-            #     logProbsMean = params['CELossCoeff'] * rankMetrics[
-            #         'logProbsMean']
-            #     abot_vis['logProbsMean'].append(logProbsMean.astype(float))
-            #     # plot
-
-            #     if params['trainMode'] == 'sl-abot':
-            #         valLoss = logProbsMean
-            #         abot_vis['valLoss'].append(valLoss.astype(float))
-                # plot
 
         if qBot:
             print("qBot Validation:")
             qbot_vis['iterIds'].append(iterId)
             rankMetrics, roundMetrics = rankQBot(
-                qBot, dataset, 'val', word2vec=None, vocabulary=vocabulary)
+                qBot, dataset, 'val', word2vec=word2vec, vocabulary=vocabulary, exampleLimit=32 * params['batchSize'])
 
             for metric, value in rankMetrics.items():
-                qbot_vis[metric].append(value.astype(float))
-                pass
+                if metric != 'rouge':
+                    qbot_vis[metric].append(value.astype(float))
+                elif metric == 'rouge':
+                    qbot_vis['rouge'] = value
 
             if 'logProbsMean' in rankMetrics:
                 logProbsMean = params['CELossCoeff'] * rankMetrics[
@@ -492,22 +490,17 @@ for epochId, idx, batch in batch_iter(dataloader):
 
                 qbot_vis['logProbsMean'].append(logProbsMean.astype(float))
 
-                # plot
-
             if 'featLossMean' in rankMetrics:
                 featLossMean = params['featLossCoeff'] * (
                     rankMetrics['featLossMean'])
                 qbot_vis['summLossMean'].append(featLossMean.astype(float))
 
-                # plot
+            # print(rankMetrics)
+            # print('---------')
+            # print(roundMetrics)
+            # exit()
 
-            # if 'logProbsMean' in rankMetrics and 'featLossMean' in rankMetrics:
-            #     if params['trainMode'] == 'sl-qbot':
-            #         valLoss = logProbsMean + featLossMean
-            #         qbot_vis['valLoss'].append(valLoss.astype(float))
-                # plot
-
-    print('Validations finished ...')
+    # print('Validations finished ...')
 
     # Save the model after every epoch
     if iterId % numIterPerEpoch == 0:
@@ -525,8 +518,8 @@ for epochId, idx, batch in batch_iter(dataloader):
             print('Saving model: ' + saveFile)
             utils.saveModel(qBot, optimizer, saveFile, params)
 
-
-path = './plot_data/json_%s' % datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
+tmstp = datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
+path = './plot_data/json_%s' % tmstp
 
 os.makedirs(path,  exist_ok=True)
 
@@ -550,4 +543,6 @@ try:
 except:
     print('didnt save qbot_vis')
 
+
+lc_plotter.create_plots('json_%s' % tmstp)
 print('Done!')

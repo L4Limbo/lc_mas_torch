@@ -47,16 +47,28 @@ def plot_qbot_vis(path):
 
     iterIds = data['iterIds']
     for key in data.keys():
-        if (key != 'rouges' and key != 'rounds' and key != 'iterIds'):
-            # Data for plotting
-            if len(data[key]) == 0:
-                continue
-            fig, ax = plt.subplots()
-            ax.plot(data['iterIds'], data[key])
-            ax.set(xlabel='Iterations', ylabel=key, title='')
-            ax.grid()
+        try:
+            if (key != 'rouge' and key != 'rounds' and key != 'iterIds'):
+                # Data for plotting
+                if len(data[key]) == 0:
+                    continue
+                fig, ax = plt.subplots()
+                ax.plot(data['iterIds'], data[key])
+                ax.set(xlabel='Iterations', ylabel=key, title='')
+                ax.grid()
 
-            fig.savefig("plots/%s/qbot/%s.png" % (path, key))
+                fig.savefig("plots/%s/qbot/%s.png" % (path, key))
+        except:
+            if (key != 'rouge' and key != 'rounds' and key != 'iterIds'):
+                # Data for plotting
+                if len(data[key]) == 0:
+                    continue
+                fig, ax = plt.subplots()
+                ax.plot(data['iterIds'], data[key][::2])
+                ax.set(xlabel='Iterations', ylabel=key, title='')
+                ax.grid()
+
+                fig.savefig("plots/%s/qbot/%s.png" % (path, key))
 
 
 def create_plots(path):
@@ -70,4 +82,4 @@ def create_plots(path):
 
 
 if __name__ == '__main__':
-    create_plots('json_26-12-2022_22-27-49')
+    create_plots('exp_3')

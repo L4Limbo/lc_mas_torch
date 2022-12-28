@@ -147,7 +147,7 @@ def loadModel(params, agent='abot', overwrite=False):
         model = Questioner(
             encoderParam,
             decoderParam,
-            summFeatureSize=40)
+            summFeatureSize=60)
 
     if params['useGPU']:
         model.cuda()

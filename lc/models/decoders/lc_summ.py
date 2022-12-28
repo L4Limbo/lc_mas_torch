@@ -69,7 +69,7 @@ class SummaryDecoder(nn.Module):
 
     def forwardDecode(self,
                       encStates,
-                      maxSeqLen=40,
+                      maxSeqLen=60,
                       inference='sample',
                       beamSize=1):
         '''
@@ -90,7 +90,9 @@ class SummaryDecoder(nn.Module):
             * Greedy inference is used for evaluation
             * Sampling is used in RL fine-tuning
         '''
+
         if inference == 'greedy' and beamSize > 1:
+
             # Use beam search inference when beam size is > 1
             return self.beamSearchDecoder(encStates, beamSize, maxSeqLen)
 
@@ -235,7 +237,7 @@ class SummaryDecoder(nn.Module):
         '''
 
         # For now, use beam search for evaluation only
-        assert self.training == False
+        # assert self.training == False
 
         # Determine if cuda tensors are being used
         if self.wordEmbed.weight.is_cuda:
@@ -282,7 +284,7 @@ class SummaryDecoder(nn.Module):
 
                 # Find top beamSize logProbs
                 topLogProbs, topIdx = logProbs.topk(beamSize, dim=1)
-                beamTokensTable[:, :, 0] = topIdx.transpose(0, 1).data
+                beamTokensTable[:, :, 0] = topIdx.data
                 logProbSums = topLogProbs
 
                 # Repeating hiddenStates 'beamSize' times for subsequent self.rnn calls

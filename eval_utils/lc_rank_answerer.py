@@ -123,7 +123,7 @@ def rankABot(aBot, dataset, split, scoringFunction, exampleLimit=None):
         sys.stdout.flush()
     sys.stdout.write("\n")
     dataloader = None
-    print("Sleeping for 3 seconds to let dataloader subprocesses exit...")
+    # print("Sleeping for 3 seconds to let dataloader subprocesses exit...")
     ranks = torch.cat(ranks, 0)
     rankMetrics = metrics.computeMetrics(ranks.cpu())
 
