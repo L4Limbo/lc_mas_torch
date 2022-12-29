@@ -7,7 +7,6 @@ from timeit import default_timer as timer
 import torch
 from torch.autograd import Variable
 import torch.nn.functional as F
-
 import options
 import lc.lc_metrics as metrics
 from utils import lc_utilities as utils
@@ -172,4 +171,5 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
     rankMetricsRounds[-1]['rouge'] = rouge_scores
 
     dataset.split = original_split
+    print(rankMetricsRounds[-1])
     return rankMetricsRounds[-1], rankMetricsRounds

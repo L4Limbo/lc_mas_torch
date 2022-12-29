@@ -21,6 +21,7 @@ from eval_utils.lc_rank_questioner import rankQBot
 from utils import lc_utilities as utils
 from gensim.models import KeyedVectors
 import json
+import numpy as np
 
 from time import gmtime, strftime
 from datetime import datetime
@@ -334,7 +335,7 @@ for epochId, idx, batch in batch_iter(dataloader):
 
             summaryDistRL = utils.maskedNll(summLogProbs,
                                             torch.tensor([list(torch.cat(
-                                                (answers[0], questions[0])))]))
+                                                (answers[0], questions[0]))[:60])]).contiguous())
 
             summaryDist = utils.maskedNll(summLogProbs,
                                           summary.contiguous())
@@ -347,7 +348,9 @@ for epochId, idx, batch in batch_iter(dataloader):
 
             # qa_gt_summ_reward = utils.reward(generated=torch.cat(
             #     (answers[0], questions[0])), target=summary[0], word2vec=word2vec, vocabulary=vocabulary)
-            reward = 0.9 * summaryDistRL + 0.1 * summaryDist
+
+            reward = reward_greedy
+
             # reward = 0.8 * gt_summ_reward + 0.1 * qa_summ_reward + 0.1 * qa_gt_summ_reward
             prevSummaryDist = summaryDist
             qBotRLLoss = qBot.reinforce(reward)
@@ -357,32 +360,35 @@ for epochId, idx, batch in batch_iter(dataloader):
             rlLoss += torch.mean(qBotRLLoss)
 
             if (iterId % 10 == 0):
-                train_vis['rounds'].append(
-                    {
-                        '%s_%s' % (iterId, round): {
-                            'reward': float(reward),
-                            'summaryDistRL': float(summaryDistRL),
-                            'summaryDist': float(summaryDist),
-                            'reward_greedy': float(reward_greedy),
-                            'reward_sample': float(reward_sample),
-                            'aBotRLLoss': float(aBotRLLoss),
-                            'qBotRLLoss': float(qBotRLLoss),
-                            'summaryDist': float(summaryDist),
-                            'rouge_scores': {
-                                'r_qa_summ': utils.rouge_scores(
-                                    target=summary[0], generated=torch.cat(
-                                        (answers[0], questions[0])), word2vec=word2vec, vocabulary=vocabulary),
-                                'r_qa_summ_s': utils.rouge_scores(
-                                    target=summary[0], generated=predictedSummarySample[0][0], word2vec=word2vec, vocabulary=vocabulary),
-                                'r_qa_summ_g': utils.rouge_scores(
-                                    target=torch.cat(
-                                        (answers[0], questions[0])), generated=predictedSummaryGreedy[0][0], word2vec=word2vec, vocabulary=vocabulary),
+                try:
+                    train_vis['rounds'].append(
+                        {
+                            '%s_%s' % (iterId, round): {
+                                'reward': float(reward),
+                                'summaryDistRL': float(summaryDistRL),
+                                'summaryDist': float(summaryDist),
+                                'reward_greedy': float(reward_greedy),
+                                'reward_sample': float(reward_sample),
+                                'aBotRLLoss': float(aBotRLLoss),
+                                'qBotRLLoss': float(qBotRLLoss),
+                                'summaryDist': float(summaryDist),
+                                'rouge_scores': {
+                                    'r_qa_summ': utils.rouge_scores(
+                                        target=summary[0], generated=torch.cat(
+                                            (answers[0], questions[0])), word2vec=word2vec, vocabulary=vocabulary),
+                                    'r_qa_summ_s': utils.rouge_scores(
+                                        target=summary[0], generated=predictedSummarySample[0][0], word2vec=word2vec, vocabulary=vocabulary),
+                                    'r_qa_summ_g': utils.rouge_scores(
+                                        target=torch.cat(
+                                            (answers[0], questions[0])), generated=predictedSummaryGreedy[0][0], word2vec=word2vec, vocabulary=vocabulary),
 
-                            },
+                                },
 
+                            }
                         }
-                    }
-                )
+                    )
+                except:
+                    pass
 
     # Loss coefficients
     rlCoeff = 1
@@ -431,14 +437,17 @@ for epochId, idx, batch in batch_iter(dataloader):
         ]
         start_t = end_t
         # plots
-        # print('[-----------------------------]')
-        # print('Losses: ')
+        print('[-----------------------------]')
+        print('Losses: ')
         print(printFormat % tuple(printInfo))
-        # print('aBot loss: %s' % aBotLoss)
-        # print('qBot loss: %s' % qBotLoss)
-        # print('rlBot loss: %s' % rlLoss)
-        # print('summBot loss: %s' % summLoss)
-        # print('Total loss: %s\n' % loss)
+        print('aBot loss: %s' % aBotLoss)
+        print('qBot loss: %s' % qBotLoss)
+        print('rlBot loss: %s' % rlLoss)
+        print('summBot loss: %s' % summLoss)
+        print('reward %s: ' % reward)
+        print(reward_greedy)
+        print(reward_sample)
+        print('Total loss: %s\n' % loss)
 
         train_vis['iterIds'].append(iterId)
 
