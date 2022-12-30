@@ -20,7 +20,6 @@ from six.moves import range
 
 def rankOptions(options, gtOptions, scores):
     '''Rank a batch of examples against a list of options.'''
-    numOptions = options.size(1)
     # Compute score of GT options in 'scores'
     gtScores = scores.gather(1, gtOptions.unsqueeze(1))
     # Sort all predicted scores
@@ -66,7 +65,6 @@ def rankABot(aBot, dataset, split, scoringFunction, exampleLimit=None):
         num_workers=0,
         collate_fn=dataset.collate_fn)
 
-    totalLoss, totalTokens = 0, 0
     ranks = []
     logProbsAll = [[] for _ in range(numRounds)]
     start_t = timer()
@@ -85,7 +83,8 @@ def rankABot(aBot, dataset, split, scoringFunction, exampleLimit=None):
                 for key, v in batch.items()
             }
         with torch.no_grad():
-            summary = Variable(batch['summary'])
+            summary = Variable(batch['summ'])
+            summaryLens = Variable(batch['summ_len'], requires_grad=False)
             document = Variable(batch['doc'])
             documentLens = Variable(batch['doc_len'])
             questions = Variable(batch['ques'])
@@ -96,7 +95,7 @@ def rankABot(aBot, dataset, split, scoringFunction, exampleLimit=None):
             optionLens = Variable(batch['opt_len'])
             correctOptionInds = Variable(batch['ans_id'])
         aBot.reset()
-        aBot.observe(-1, document=document,
+        aBot.observe(-1, summary=summary, summaryLens=summaryLens, document=document,
                      documentLens=documentLens)
         for round in range(numRounds):
             aBot.observe(
@@ -123,7 +122,7 @@ def rankABot(aBot, dataset, split, scoringFunction, exampleLimit=None):
         sys.stdout.flush()
     sys.stdout.write("\n")
     dataloader = None
-    # print("Sleeping for 3 seconds to let dataloader subprocesses exit...")
+
     ranks = torch.cat(ranks, 0)
     rankMetrics = metrics.computeMetrics(ranks.cpu())
 

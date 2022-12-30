@@ -64,7 +64,7 @@ class Decoder(nn.Module):
             flatOutputs = outputs.reshape(-1, outputSize[2])
             flatScores = self.outNet(flatOutputs)
             flatLogProbs = self.logSoftmax(flatScores)
-            logProbs = flatLogProbs.reshape(outputSize[0], outputSize[1], -1)
+            logProbs = flatLogProbs.view(outputSize[0], outputSize[1], -1)
         return logProbs
 
     def forwardDecode(self,

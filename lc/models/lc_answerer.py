@@ -61,6 +61,7 @@ class Answerer(Agent):
             assert round == len(self.answers),\
                 "Round number does not match number of answers observed"
             self.answers.append(ans)
+
         self.encoder.observe(round, ans=ans, document=document, **kwargs)
 
     def forward(self):

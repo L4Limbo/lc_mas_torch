@@ -8,7 +8,7 @@ from utils import lc_utilities as utils
 
 
 class Questioner(Agent):
-    def __init__(self, encoderParam, decoderParam, summFeatureSize=60,
+    def __init__(self, encoderParam, decoderParam, summGenSize=60,
                  verbose=1):
         '''
             Q-Bot Model
@@ -21,7 +21,7 @@ class Questioner(Agent):
         self.decType = decoderParam['type']
         self.dropout = encoderParam['dropout']
         self.rnnHiddenSize = encoderParam['rnnHiddenSize']
-        self.summFeatureSize = summFeatureSize
+        self.summGenSize = summGenSize
         encoderParam = encoderParam.copy()
         encoderParam['isAnswerer'] = False
 
@@ -114,7 +114,7 @@ class Questioner(Agent):
 
         return questions, quesLens
 
-    def predictSummary(self, inference='sample', beamSize=1, maxSeqLen=40):
+    def predictSummary(self, inference='sample', beamSize=5, maxSeqLen=60):
         '''
         Predict/guess an fc7 vector given the current conversation history. This can
         be called at round 0 after the document is observed, and at end of every round
@@ -135,8 +135,6 @@ class Questioner(Agent):
         likelihood under the current decoder RNN state.
         '''
         encStates = self.encoder()
-        if len(self.questions) == 0:
-            raise Exception('Must provide question if not sampling one.')
         decIn = summary
 
         logProbs = self.summGen(encStates, inputSeq=decIn)
@@ -145,4 +143,9 @@ class Questioner(Agent):
     def reinforce(self, reward):
         # Propogate reinforce function call to decoder
 
-        return 0.5 * (self.decoder.reinforce(reward) + self.summGen.reinforce(reward))
+        return self.decoder.reinforce(reward)
+
+    def reinforceSumm(self, reward):
+        # Propogate reinforce function call to decoder for Summarization
+
+        return self.summGen.reinforce(reward)

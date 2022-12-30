@@ -12,6 +12,7 @@ class Encoder(nn.Module):
                  embedSize,
                  rnnHiddenSize,
                  numLayers,
+                 useSumm,
                  numRounds,
                  isAnswerer,
                  dropout=0,
@@ -24,7 +25,10 @@ class Encoder(nn.Module):
         self.rnnHiddenSize = rnnHiddenSize
         self.numLayers = numLayers
         assert self.numLayers > 1, "Less than 2 layers not supported!"
-
+        if useSumm:
+            self.useSumm = useSumm if useSumm != True else 'early'
+        else:
+            self.useSumm = False
         self.numRounds = numRounds
         self.dropout = dropout
         self.isAnswerer = isAnswerer
@@ -36,7 +40,13 @@ class Encoder(nn.Module):
             self.vocabSize, self.embedSize, padding_idx=0)
 
         # question encoder
-        if self.isAnswerer:
+        if self.useSumm == 'early':
+            quesInputSize = self.embedSize * 2
+            dialogInputSize = 2 * self.rnnHiddenSize
+        elif self.useSumm == 'late':
+            quesInputSize = self.embedSize
+            dialogInputSize = 2 * self.rnnHiddenSize
+        elif self.isAnswerer:
             quesInputSize = self.embedSize
             dialogInputSize = 2 * self.rnnHiddenSize
         else:
@@ -65,6 +75,10 @@ class Encoder(nn.Module):
         self.batchSize = 0
 
         # Input data
+        self.summaryTokens = None
+        self.summaryEmbed = None
+        self.summaryLens = None
+
         self.documentTokens = None
         self.documentEmbed = None
         self.documentLens = None
@@ -94,6 +108,8 @@ class Encoder(nn.Module):
 
     def observe(self,
                 round,
+                summary=None,
+                summaryLens=None,
                 document=None,
                 ques=None,
                 ans=None,
@@ -107,6 +123,15 @@ class Encoder(nn.Module):
         right-padded). Internally this alignment is changed to right-align
         for ease in computing final time step hidden states of each RNN
         '''
+
+        if summary is not None:
+            assert round == -1
+            assert summaryLens is not None, "Document lengths required!"
+            summary, summaryLens = self.processSequence(
+                summary, summaryLens)
+            self.summaryTokens = summary
+            self.summaryLens = summaryLens
+            self.batchSize = len(self.summaryTokens)
 
         if document is not None:
             assert round == -1
@@ -141,7 +166,9 @@ class Encoder(nn.Module):
             embeds them so that they are not re-computed upon multiple
             calls to forward in the same round of dialog.
         '''
-
+        # Embed summary, occurs once per dialog
+        if self.isAnswerer and self.summaryEmbed is None:
+            self.summaryEmbed = self.wordEmbed(self.summaryTokens)
         # Embed document, occurs once per dialog
         if self.documentEmbed is None:
             self.documentEmbed = self.wordEmbed(self.documentTokens)
@@ -159,9 +186,23 @@ class Encoder(nn.Module):
         '''Embed facts i.e. document and round 0 or question-answer pair otherwise'''
         # Document
         if factIdx == 0:
-            seq, seqLens = self.documentEmbed, self.documentLens
-            factEmbed, states = utils.dynamicRNN(
-                self.factRNN, seq, seqLens, returnStates=True)
+            if self.useSumm == 'late':
+                seqTokens, seqLens = self.documentTokens, self.documentLens
+                summTokens, summLens = self.summaryTokens, self.summaryLens
+
+                seqSummTokens = utils.concatPaddedSequences(
+                    summTokens, summLens, seqTokens, seqLens, padding='right')
+
+                seqSumm = self.wordEmbed(seqSummTokens)
+                seqSummLens = seqLens + summLens
+
+                seqSummEmbed, states = utils.dynamicRNN(
+                    self.factRNN, seqSumm, seqSummLens, returnStates=True)
+                factEmbed = seqSummEmbed
+            else:
+                seq, seqLens = self.documentEmbed, self.documentLens
+                factEmbed, states = utils.dynamicRNN(
+                    self.factRNN, seq, seqLens, returnStates=True)
         # QA pairs
         elif factIdx > 0:
             quesTokens, quesLens = \
@@ -184,7 +225,10 @@ class Encoder(nn.Module):
         '''Embed questions'''
         quesIn = self.questionEmbeds[qIdx]
         quesLens = self.questionLens[qIdx]
-
+        if self.useSumm == 'early':
+            summary = self.summaryEmbed.unsqueeze(
+                1).repeat(1, quesIn.size(1), 1)
+            quesIn = torch.cat([quesIn, summary], 2)
         qEmbed, states = utils.dynamicRNN(
             self.quesRNN, quesIn, quesLens, returnStates=True)
         quesRNNstates = states
@@ -194,7 +238,6 @@ class Encoder(nn.Module):
         currIns = [self.factEmbeds[histIdx][0]]
         if self.isAnswerer:
             currIns.append(self.questionRNNStates[histIdx][0])
-
         hist_t = torch.cat(currIns, -1)
         self.dialogRNNInputs.append(hist_t)
 

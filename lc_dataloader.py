@@ -32,8 +32,7 @@ class LCDataset(Dataset):
             setattr(self, key, value)
         self.subsets = tuple(subsets)
         self.numRounds = params['numRounds']
-        print('NumRounds %s' % self.numRounds)
-        print('\nDataloader loading json file: ' + self.inputJson)
+
         with open(self.inputJson, 'r') as fileId:
             info = json.load(fileId)
             # Absorb values
@@ -67,8 +66,7 @@ class LCDataset(Dataset):
         if self.useSumm:
             # Read summaries
             print('Dataloader loading json file: ' + self.inputSumm)
-            self.summFile = json.load(open(self.inputSumm))
-            self.data['summ'] = self.summFile
+            summFile = json.load(open(self.inputSumm))
 
         # map from load to save labels
         ioMap = {
@@ -101,36 +99,7 @@ class LCDataset(Dataset):
 
             # Read summary features, if needed
             if self.useSumm:
-                self.data['summ'] = self.summFile
-            #     print('Reading summary features...')
-            #     summFeats = np.array(summFile['summarys_' + dtype])
-
-            #     if not self.summNorm:
-            #         continue
-            #     # normalize, if needed
-            #     print('Normalizing summary features..')
-            #     summFeats = normalize(summFeats, axis=1, norm='l2')
-
-            #     # save summ features
-            #     self.data['%s_summ_fv' % dtype] = torch.FloatTensor(summFeats)
-            #     # Visdial
-            #     if hasattr(self, 'unique_summ_train') and params['cocoDir']:
-            #         coco_dir = params['cocoDir']
-            #         with open(params['cocoInfo'], 'r') as f:
-            #             coco_info = json.load(f)
-            #         id_to_fname = {
-            #             im['id']: im['file_path']
-            #             for im in coco_info['summarys']
-            #         }
-            #         cocoids = getattr(self, 'unique_summ_%s' % dtype)
-            #         if '.jpg' not in cocoids[0]:
-            #             summ_fnames = [
-            #                 os.path.join(coco_dir, id_to_fname[int(cocoid)])
-            #                 for cocoid in cocoids
-            #             ]
-            #         else:
-            #             summ_fnames = cocoids
-            #         self.data['%s_summ_fnames' % dtype] = summ_fnames
+                self.data['summ'] = summFile
 
             # read the history, if needed
             if self.useHistory:
@@ -292,10 +261,7 @@ class LCDataset(Dataset):
         return self.numDataPoints[self._split]
 
     def __getitem__(self, idx):
-        # try:
         item = self.getIndexItem(self._split, idx)
-        # except:
-        #     print('error in dataloader')
         return item
 
     def collate_fn(self, batch):
@@ -378,7 +344,9 @@ class LCDataset(Dataset):
 
         # if summary needed
         if self.useSumm:
-            summ = torch.tensor(self.data['summ'][str(idx)])
-            item['summary'] = summ
+            summ = torch.tensor([self.word2ind['<START>']] +
+                                self.data['summ'][str(idx)] + [self.word2ind['<END>']])
+            item['summ'] = summ
+            item['summ_len'] = torch.tensor(len(summ))
 
         return item
