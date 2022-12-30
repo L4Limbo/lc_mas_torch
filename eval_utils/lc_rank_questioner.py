@@ -7,7 +7,7 @@ from timeit import default_timer as timer
 import torch
 from torch.autograd import Variable
 import torch.nn.functional as F
-import options
+import lc_options
 import lc.lc_metrics as metrics
 from utils import lc_utilities as utils
 from lc_dataloader import LCDataset
@@ -25,7 +25,7 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
         ground truth documents, questions and answers. Q-Bot does not
         generate dialog in this setting - it only encodes ground truth
         documents and dialog in order to perform summary retrieval by
-        predicting FC-7 summary features after each round of dialog.
+        predicting summary after each round of dialog.
 
         Arguments:
             qBot    : Q-Bot

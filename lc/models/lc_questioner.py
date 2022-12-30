@@ -147,5 +147,4 @@ class Questioner(Agent):
 
     def reinforceSumm(self, reward):
         # Propogate reinforce function call to decoder for Summarization
-
         return self.summGen.reinforce(reward)

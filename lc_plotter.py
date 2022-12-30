@@ -12,7 +12,8 @@ def plot_train_vis(path):
     for key in data.keys():
         if (key != 'rouges' and key != 'rounds' and key != 'iterIds'):
             # Data for plotting
-
+            if len(data[key]) == 0:
+                continue
             fig, ax = plt.subplots()
             ax.plot(data['iterIds'], data[key])
             ax.set(xlabel='Iterations', ylabel=key, title='')
@@ -82,4 +83,4 @@ def create_plots(path):
 
 
 if __name__ == '__main__':
-    create_plots('exp_3')
+    create_plots('experiment_name')

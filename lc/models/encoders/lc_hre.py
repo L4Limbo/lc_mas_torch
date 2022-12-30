@@ -186,7 +186,7 @@ class Encoder(nn.Module):
         '''Embed facts i.e. document and round 0 or question-answer pair otherwise'''
         # Document
         if factIdx == 0:
-            if self.useSumm == 'late':
+            if self.useSumm == 'late' and self.isAnswerer:
                 seqTokens, seqLens = self.documentTokens, self.documentLens
                 summTokens, summLens = self.summaryTokens, self.summaryLens
 

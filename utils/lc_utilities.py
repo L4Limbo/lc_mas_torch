@@ -11,6 +11,7 @@ from gensim import matutils
 import numpy as np
 from rouge import Rouge
 from scipy import spatial
+from similarity.normalized_levenshtein import NormalizedLevenshtein
 
 from six import iteritems
 
@@ -348,21 +349,9 @@ def concatPaddedSequences(seq1, seqLens1, seq2, seqLens2, padding='right'):
     return concat_output
 
 
-def reward(target, generated, word2vec, vocabulary):
-    '''
-    Calculate the reward for the generated text
-    '''
-    target = word2vec_emb(target, word2vec, vocabulary)
-    generated = word2vec_emb(generated, word2vec, vocabulary)
-
-    reward = similarity_cosine(target.mean(axis=0), generated.mean(axis=0))
-
-    return torch.tensor(1 - reward)
-
-
 def word2vec_emb(sequence, word2vec, vocabulary):
-
     seq_tokens = []
+    vectorized = []
 
     for key in sequence:
         try:
@@ -371,7 +360,6 @@ def word2vec_emb(sequence, word2vec, vocabulary):
             seq_tokens.append(vocabulary['ind2word'][list(
                 vocabulary['ind2word'].keys())[-1]])
 
-    vectorized = []
     for word in seq_tokens:
         try:
             vectorized.append(word2vec[word])
@@ -406,3 +394,75 @@ def rouge_scores(target, generated, word2vec, vocabulary):
             pass
 
     return rouge.get_scores(' '.join(ref), ' '.join(tar), avg=True)
+
+
+# -------------------------------------------------------------------
+# Reward Functions --------------------------------------------------
+# -------------------------------------------------------------------
+
+
+def levenshtein_reward(target, generated, word2vec, vocabulary):
+    rewards = []
+    normalized_levenshtein = NormalizedLevenshtein()
+    for i in range(len(target)):
+        tar = []
+        ref = []
+
+        for key in target[i]:
+            try:
+                if vocabulary['ind2word'][str(key.item())] != 'UNK':
+                    tar.append(vocabulary['ind2word'][str(key.item())])
+            except:
+                pass
+
+        for key in generated[i]:
+            try:
+                if vocabulary['ind2word'][str(key.item())] != 'UNK':
+                    ref.append(vocabulary['ind2word'][str(key.item())])
+            except:
+                pass
+
+        rewards.append(1 - normalized_levenshtein.distance(
+            ' '.join(ref), ' '.join(tar)))
+
+    return torch.tensor(rewards)
+
+
+def word2vec_reward(target, generated, word2vec, vocabulary):
+    rewards = []
+
+    for i in range(len(target)):
+        tar = word2vec_emb(target[i], word2vec, vocabulary)
+        gen = word2vec_emb(generated[i], word2vec, vocabulary)
+        rewards.append(similarity_cosine(tar.mean(axis=0), gen.mean(axis=0)))
+
+    return torch.tensor(rewards)
+
+
+def rougel_f1_reward(target, generated, word2vec, vocabulary):
+    rewards = []
+
+    rouge = Rouge()
+
+    for i in range(len(target)):
+        tar = []
+        ref = []
+
+        for key in target[i]:
+            try:
+                if vocabulary['ind2word'][str(key.item())] != 'UNK':
+                    tar.append(vocabulary['ind2word'][str(key.item())])
+            except:
+                pass
+
+        for key in generated[i]:
+            try:
+                if vocabulary['ind2word'][str(key.item())] != 'UNK':
+                    ref.append(vocabulary['ind2word'][str(key.item())])
+            except:
+                pass
+
+        rewards.append(rouge.get_scores(
+            ' '.join(ref), ' '.join(tar), avg=True)['rouge-l']['f'])
+
+    return torch.tensor(rewards)

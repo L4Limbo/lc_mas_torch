@@ -79,7 +79,7 @@ def readCommandLine(argv=None):
                         choices=['sl-abot', 'sl-qbot', 'rl-full-QAf'])
     parser.add_argument('-numRounds', default=5, type=int,
                         help='Number of rounds of dialog (max 10)')
-    parser.add_argument('-batchSize', default=20, type=int,
+    parser.add_argument('-batchSize', default=2, type=int,
                         help='Batch size (number of threads) '
                         '(Adjust base on GPU memory)')
     parser.add_argument('-learningRate', default=1e-3, type=float,

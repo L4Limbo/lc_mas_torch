@@ -17,7 +17,7 @@ import lc_options
 from lc_dataloader import LCDataset
 from torch.utils.data import DataLoader
 from eval_utils.lc_rank_answerer import rankABot
-from eval_utils.lc_rank_questioner import rankQBot
+# from eval_utils.lc_rank_questioner import rankQBot
 from utils import lc_utilities as utils
 from gensim.models import KeyedVectors
 import json
@@ -34,6 +34,7 @@ from datetime import datetime
 timeStamp = strftime('%d-%b-%y-%X-%a')
 print('Loading Vocabulary and Vectors')
 
+vocabulary = json.load(open('data/processed_data/processed_data.json', 'r'))
 word2vec = KeyedVectors.load_word2vec_format(
     'data/word2vec/GoogleNews-vectors-negative300.bin', binary=True)
 
@@ -242,7 +243,6 @@ for epochId, idx, batch in batch_iter(dataloader):
     if params['trainMode'] in ['sl-qbot', 'rl-full-QAf']:
         # TODO LIMBO: REWARD FUNCTION
 
-        initSummary = qBot.predictSummary()
         summLogProbs = qBot.forwardSumm(summary=summary)
         prevSummDist = utils.maskedNll(summLogProbs,
                                        summary.contiguous())
@@ -334,7 +334,6 @@ for epochId, idx, batch in batch_iter(dataloader):
         # Questioner feature regression network forward pass
         if summGenerationNet and round < MAX_FEAT_ROUNDS:
             # Make an summary prediction after each round
-
             predSummary = qBot.predictSummary()
             summLogProbs = qBot.forwardSumm(summary=summary)
             summDist = utils.maskedNll(summLogProbs,
@@ -360,12 +359,22 @@ for epochId, idx, batch in batch_iter(dataloader):
                                        summary.contiguous())
             summDist = torch.mean(summDist)
 
-            reward = prevSummDist.detach() - summDist
+            '''
+            Reward Calculation
+            1. Rouge-L F1 (generatedSummary, summary): utils.rougel_f1_reward
+            2. Levenshtein Distance (generatedSummary, summary): utils.levenshtein_reward
+            3. Word2Vec Cosine Similarity (generatedSummary, summary): utils.word2vec_reward
+            
+            RL Loss can be applied with RwB-Hinge
+            '''
+            reward = utils.levenshtein_reward(target=summary, generated=qBot.predictSummary()[
+                                              0], word2vec=word2vec, vocabulary=vocabulary)
 
             qBotRLLoss = qBot.reinforce(reward)
             sumGenRLLoss = qBot.reinforceSumm(reward)
             if params['rlAbotReward']:
                 aBotRLLoss = aBot.reinforce(reward)
+
             rlLoss += torch.mean(aBotRLLoss)
             rlLoss += torch.mean(qBotRLLoss)
             rlLoss += torch.mean(sumGenRLLoss)
@@ -420,7 +429,7 @@ for epochId, idx, batch in batch_iter(dataloader):
         print('[-----------------------------]')
         print('Losses: ')
         print(printFormat % tuple(printInfo))
-        if params['trainMode'] == 'sl-qbot':
+        if params['trainMode'] == 'rl-full-QAf':
             print('reward: %s' % reward)
             train_vis['reward'].append(float(reward))
         train_vis['iterIds'].append(iterId)
@@ -456,32 +465,8 @@ for epochId, idx, batch in batch_iter(dataloader):
         # if qBot:
         #     print("qBot Validation:")
         #     qbot_vis['iterIds'].append(iterId)
-        #     rankMetrics, roundMetrics = rankQBot(
+        #     rankMetrics = rankQBot(
         #         qBot, dataset, 'val', word2vec=word2vec, vocabulary=vocabulary, exampleLimit=32 * params['batchSize'])
-
-        #     for metric, value in rankMetrics.items():
-        #         if metric != 'rouge':
-        #             qbot_vis[metric].append(value.astype(float))
-        #         elif metric == 'rouge':
-        #             qbot_vis['rouge'] = value
-
-        #     if 'logProbsMean' in rankMetrics:
-        #         logProbsMean = params['CELossCoeff'] * rankMetrics[
-        #             'logProbsMean']
-
-        #         qbot_vis['logProbsMean'].append(logProbsMean.astype(float))
-
-        #     if 'featLossMean' in rankMetrics:
-        #         featLossMean = params['featLossCoeff'] * (
-        #             rankMetrics['featLossMean'])
-        #         qbot_vis['summLossMean'].append(featLossMean.astype(float))
-
-            # print(rankMetrics)
-            # print('---------')
-            # print(roundMetrics)
-            # exit()
-
-    # print('Validations finished ...')
 
     # Save the model after every epoch
     if iterId % numIterPerEpoch == 0:
