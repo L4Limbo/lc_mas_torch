@@ -417,11 +417,8 @@ for epochId, idx, batch in batch_iter(dataloader):
         ]
         start_t = end_t
         # plots
-        print('[-----------------------------]')
-        print('Losses: ')
         print(printFormat % tuple(printInfo))
         if params['trainMode'] == 'rl-full-QAf':
-            print('reward: %s' % reward)
             train_vis['reward'].append(float(torch.mean(reward)))
         train_vis['iterIds'].append(iterId)
         train_vis['aBotLoss'].append(float(aBotLoss))
@@ -451,8 +448,6 @@ for epochId, idx, batch in batch_iter(dataloader):
 
             for metric, value in rankMetrics.items():
                 abot_vis[metric].append(value.astype(float))
-
-            print(abot_vis)
 
         if qBot:
             qbot_vis['iterIds'].append(iterId)

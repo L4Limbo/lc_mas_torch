@@ -9,6 +9,7 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 import nltk
 
+nltk.download('punkt')
 nltk.download('stopwords')
 stop_words = stopwords.words('english')
 

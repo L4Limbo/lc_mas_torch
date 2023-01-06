@@ -74,7 +74,7 @@ def readCommandLine(argv=None):
 
     # -------------------------------------------------------------------------
     # Optimization / training params
-    parser.add_argument('-trainMode', default='rl-full-QAf',
+    parser.add_argument('-trainMode', default='sl-qbot',
                         help='What should train.py do?',
                         choices=['sl-abot', 'sl-qbot', 'rl-full-QAf'])
     parser.add_argument('-numRounds', default=10, type=int,

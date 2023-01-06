@@ -10,17 +10,20 @@ def plot_train_vis(path):
 
     iterIds = data['iterIds']
     for key in data.keys():
-        if (key != 'rouges' and key != 'rounds' and key != 'iterIds'):
-            # Data for plotting
-            if len(data[key]) == 0:
-                continue
-            fig, ax = plt.subplots()
-            ax.plot(data['iterIds'], data[key])
-            ax.set(xlabel='Iterations', ylabel=key, title='')
+        try:
+            if (key != 'rouges' and key != 'rounds' and key != 'iterIds'):
+                # Data for plotting
+                if len(data[key]) == 0:
+                    continue
+                fig, ax = plt.subplots()
+                ax.plot(data['iterIds'], data[key])
+                ax.set(xlabel='Iterations', ylabel=key, title='')
 
-            ax.grid()
+                ax.grid()
 
-            fig.savefig("plots/%s/train/%s.png" % (path, key))
+                fig.savefig("plots/%s/train/%s.png" % (path, key))
+        except:
+            pass
 
 
 def plot_abot_vis(path):
@@ -29,17 +32,20 @@ def plot_abot_vis(path):
 
     iterIds = data['iterIds']
     for key in data.keys():
-        if (key != 'rouges' and key != 'rounds' and key != 'iterIds'):
-            # Data for plotting
-            if len(data[key]) == 0:
-                continue
-            fig, ax = plt.subplots()
-            ax.plot(data['iterIds'], data[key])
-            ax.set(xlabel='Iterations', ylabel=key, title='')
+        try:
+            if (key != 'rouges' and key != 'rounds' and key != 'iterIds'):
+                # Data for plotting
+                if len(data[key]) == 0:
+                    continue
+                fig, ax = plt.subplots()
+                ax.plot(data['iterIds'], data[key])
+                ax.set(xlabel='Iterations', ylabel=key, title='')
 
-            ax.grid()
+                ax.grid()
 
-            fig.savefig("plots/%s/abot/%s.png" % (path, key))
+                fig.savefig("plots/%s/abot/%s.png" % (path, key))
+        except:
+            pass
 
 
 def plot_qbot_vis(path):
