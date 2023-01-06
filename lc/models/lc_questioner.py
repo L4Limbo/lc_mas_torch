@@ -8,7 +8,7 @@ from utils import lc_utilities as utils
 
 
 class Questioner(Agent):
-    def __init__(self, encoderParam, decoderParam, summGenSize=60,
+    def __init__(self, encoderParam, decoderParam, summGenSize=200,
                  verbose=1):
         '''
             Q-Bot Model

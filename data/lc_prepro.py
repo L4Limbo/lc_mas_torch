@@ -67,12 +67,12 @@ def tokenize_data(data, word_count=False):
                 range(len(data['data']['answers'])))
         res[i['summary']]['num_rounds'] = len(i['dialog'])
         # right-pad i['dialog'] with empty question-answer pairs at the end
-        while len(i['dialog']) < 5:
+        while len(i['dialog']) < 10:
             i['dialog'].append({'question': random.choice(range(
                 len(data['data']['questions']))), 'answer': random.choice(range(len(data['data']['answers'])))})
         res[i['summary']]['dialog'] = i['dialog']
         if word_count == True:
-            for j in range(5):
+            for j in range(10):
                 question = clear_ques[i['dialog'][j]['question']]
                 answer = clear_ans[i['dialog'][j]['answer']]
                 for word in question + answer:
@@ -86,7 +86,7 @@ def encode_summaries(data_toks, word2ind):
 
     for key in data_toks.keys():
         res[key] = [word2ind.get(word, word2ind['UNK'])
-                    for word in data_toks[key]][:60]
+                    for word in data_toks[key]][:200]
 
     return res
 
@@ -133,8 +133,8 @@ def split_data(json_data, train_path, val_path, test_path):
     val_data['data']['answers'] = json_data['data']['answers'][:]
     test_data['data']['answers'] = json_data['data']['answers'][:]
 
-    train_data['data']['dialogs'] = json_data['data']['dialogs'][0::1]
-    val_data['data']['dialogs'] = json_data['data']['dialogs'][::3]
+    train_data['data']['dialogs'] = json_data['data']['dialogs'][0:117]
+    val_data['data']['dialogs'] = json_data['data']['dialogs'][117:]
     # test_data['data']['dialogs'] = json_data['data']['dialogs'][124:]
 
     with open(train_path, 'w') as jsonFile:
@@ -157,7 +157,7 @@ def create_data_mats(data_toks, ques_inds, ans_inds, dtype):
     # create summary lists and document data mats
     summary_list = []
     summary_index = np.zeros(num_threads)
-    max_doc_len = 200
+    max_doc_len = 1400
     documents = np.zeros([num_threads, max_doc_len])
     document_len = np.zeros(num_threads, dtype=np.int)
     summary_ids = list(data_toks.keys())
@@ -176,7 +176,7 @@ def create_data_mats(data_toks, ques_inds, ans_inds, dtype):
         documents[i][0:document_len[i]
                      ] = data_toks[summary_id]['document_inds'][0:max_doc_len]
 
-    num_rounds = 5
+    num_rounds = 10
     max_ques_len = 40
     max_ans_len = 40
 
@@ -202,7 +202,7 @@ def create_data_mats(data_toks, ques_inds, ans_inds, dtype):
 
     # create ground truth answer and options data mats
     answer_index = np.zeros([num_threads, num_rounds])
-    num_rounds_list = np.full(num_threads, 5)
+    num_rounds_list = np.full(num_threads, 10)
     options = np.zeros([num_threads, num_rounds, 10])
 
     for i in range(num_threads):
@@ -213,9 +213,9 @@ def create_data_mats(data_toks, ques_inds, ans_inds, dtype):
                                         for i in range(num_threads)])
 
                 data_toks[summary_id]['dialog'][j]['answer_options'] = [
-                    random.choice(range(num_threads)) for i in range(5)]
+                    random.choice(range(num_threads)) for i in range(10)]
                 data_toks[summary_id]['dialog'][j]['gt_index'] = random.choice(
-                    range(5))
+                    range(10))
                 options[i][j] = np.concatenate((np.array(
                     data_toks[summary_id]['dialog'][j]['answer_options'][:10]), rand_padding[:10-len(data_toks[summary_id]['dialog'][j]['answer_options'][:10])])) + 1
                 answer_index[i][j] = data_toks[summary_id]['dialog'][j]['gt_index'] + 1
@@ -246,7 +246,7 @@ def tokenize_summaries():
                 clear_summ.append(word)
         res[key] = clear_summ
 
-        while len(res[key]) < 60:
+        while len(res[key]) < 200:
             res[key].append(' ')
 
     for key in res.keys():
@@ -299,7 +299,7 @@ if __name__ == "__main__":
     print('Loading Data ...')
     json_data = json.load(open(input_path))
 
-    # Split Dataset 60 / 20 / 20
+    # Split Dataset 75 / 25
     print('Creating Splits ...')
     data_train, data_val = split_data(
         json_data, train_path, val_path, test_path)

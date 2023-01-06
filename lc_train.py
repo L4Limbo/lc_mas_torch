@@ -1,3 +1,4 @@
+from eval_utils.lc_rank_questioner import rankQBot
 import lc_plotter
 import os
 import gc
@@ -42,7 +43,7 @@ word2vec = KeyedVectors.load_word2vec_format(
 params = lc_options.readCommandLine()
 
 # train modes : 'rl-full-QAf', 'sl-abot', 'sl-qbot'
-params['trainMode'] = 'sl-qbot'
+# params['trainMode'] = 'sl-abot'
 
 # Seed rng for reproducibility
 random.seed(params['randomSeed'])
@@ -123,7 +124,7 @@ print('\n%d iter per epoch.' % numIterPerEpoch)
 
 if params['useCurriculum']:
     if params['continue']:
-        rlRound = max(0, 4 - (startIterID // numIterPerEpoch))
+        rlRound = max(0, 9 - (startIterID // numIterPerEpoch))
     else:
         rlRound = params['numRounds'] - 1
 else:
@@ -140,38 +141,27 @@ train_vis = {
     'summLoss': [],
     'loss': [],
     'runningLoss': [],
-    'rouges': {
-        'r1': [],
-        'r2': [],
-        'rl': [],
-    },
     'rounds': [],
     'reward': [],
+    'learning_rate': [lRate]
 }
 
 abot_vis = {
     'iterIds': [],
     'r1': [],
     'r5': [],
-    'r10': [],
     'mean': [],
     'mrr': [],
     'logProbsMean': [],
-    'valLoss': [],
 }
 
 qbot_vis = {
     'iterIds': [],
-    'r1': [],
-    'r5': [],
-    'mean': [],
-    'mrr': [],
     'percentile': [],
     'logProbsMean': [],
     'summLossMean': [],
     'logProbs': [],
     'summLoss': [],
-    'valLoss': [],
     'rouge': [],
 }
 
@@ -188,6 +178,8 @@ def batch_iter(dataloader):
 
 
 start_t = timer()
+
+started_time = timer()
 
 for epochId, idx, batch in batch_iter(dataloader):
 
@@ -328,8 +320,8 @@ for epochId, idx, batch in batch_iter(dataloader):
 
         # In order to stay true to the original implementation, the feature
         # regression network makes predictions before dialog begins and for
-        # the first 5 rounds of dialog.
-        MAX_FEAT_ROUNDS = 5
+        # the first 9 rounds of dialog.
+        MAX_FEAT_ROUNDS = 9
 
         # Questioner feature regression network forward pass
         if summGenerationNet and round < MAX_FEAT_ROUNDS:
@@ -386,7 +378,7 @@ for epochId, idx, batch in batch_iter(dataloader):
     # Averaging over rounds
     qBotLoss = (params['CELossCoeff'] * qBotLoss) / numRounds
     aBotLoss = (params['CELossCoeff'] * aBotLoss) / numRounds
-    summLoss = summLoss / numRounds  # / (numRounds+1)
+    summLoss = summLoss / numRounds
     rlLoss = rlLoss / numRounds
     # Total loss
     loss = qBotLoss + aBotLoss + rlLoss + summLoss
@@ -404,9 +396,8 @@ for epochId, idx, batch in batch_iter(dataloader):
         for gId, group in enumerate(optimizer.param_groups):
             optimizer.param_groups[gId]['lr'] *= params['lrDecayRate']
         lRate *= params['lrDecayRate']
-        if iterId % 10 == 0:  # Plot learning rate till saturation
-            # TODO LIMBO: LEARNING RATE PLOT
-            pass
+        if iterId % 10 == 0:
+            train_vis['learning_rate'].append(lRate)
 
     # RL Annealing: Every epoch after the first, decrease rlRound
     if iterId % numIterPerEpoch == 0 and iterId > 0:
@@ -416,7 +407,7 @@ for epochId, idx, batch in batch_iter(dataloader):
 
     # Print every now and then
     if iterId % 10 == 0:
-        end_t = timer()  # Keeping track of iteration(s) time
+        end_t = timer()
         curEpoch = float(iterId) / numIterPerEpoch
         timeStamp = strftime('%a %d %b %y %X', gmtime())
         printFormat = '[%s][Ep: %.2f][Iter: %d][Time: %5.2fs][Loss: %.3g]'
@@ -431,7 +422,7 @@ for epochId, idx, batch in batch_iter(dataloader):
         print(printFormat % tuple(printInfo))
         if params['trainMode'] == 'rl-full-QAf':
             print('reward: %s' % reward)
-            train_vis['reward'].append(float(reward))
+            train_vis['reward'].append(float(torch.mean(reward)))
         train_vis['iterIds'].append(iterId)
         train_vis['aBotLoss'].append(float(aBotLoss))
         train_vis['qBotLoss'].append(float(qBotLoss))
@@ -454,7 +445,6 @@ for epochId, idx, batch in batch_iter(dataloader):
             qBot.eval()
 
         if aBot and 'ques' in batch:
-            # print("aBot Validation:")
             abot_vis['iterIds'].append(iterId)
             rankMetrics = rankABot(
                 aBot, dataset, 'val', scoringFunction=utils.maskedNll, exampleLimit=32 * params['batchSize'])
@@ -462,11 +452,18 @@ for epochId, idx, batch in batch_iter(dataloader):
             for metric, value in rankMetrics.items():
                 abot_vis[metric].append(value.astype(float))
 
-        # if qBot:
-        #     print("qBot Validation:")
-        #     qbot_vis['iterIds'].append(iterId)
-        #     rankMetrics = rankQBot(
-        #         qBot, dataset, 'val', word2vec=word2vec, vocabulary=vocabulary, exampleLimit=32 * params['batchSize'])
+            print(abot_vis)
+
+        if qBot:
+            qbot_vis['iterIds'].append(iterId)
+            rankMetrics = rankQBot(
+                qBot, dataset, 'val', word2vec=word2vec, vocabulary=vocabulary, exampleLimit=32 * params['batchSize'])
+
+            for metric, value in rankMetrics.items():
+                if metric != 'rouge':
+                    qbot_vis[metric].append(float(value))
+                else:
+                    qbot_vis[metric].append(value)
 
     # Save the model after every epoch
     if iterId % numIterPerEpoch == 0:
@@ -484,12 +481,13 @@ for epochId, idx, batch in batch_iter(dataloader):
             print('Saving model: ' + saveFile)
             utils.saveModel(qBot, optimizer, saveFile, params)
 
-tmstp = datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
-path = './plot_data/json_%s' % tmstp
 
-os.makedirs(path,  exist_ok=True)
+print('Training Session finished in %s' % (started_time-timer()))
 
 print('Saving data for plots ... ')
+tmstp = datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
+path = './plot_data/json_%s' % tmstp
+os.makedirs(path,  exist_ok=True)
 
 try:
     with open('%s/train_vis.json' % path, 'w') as jsonFile:
@@ -509,6 +507,7 @@ try:
 except:
     print('didnt save qbot_vis')
 
-
+print('Creating Plots ... ')
 lc_plotter.create_plots('json_%s' % tmstp)
+
 print('Done!')

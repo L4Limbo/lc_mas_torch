@@ -148,7 +148,7 @@ def loadModel(params, agent='abot', overwrite=False):
         model = Questioner(
             encoderParam,
             decoderParam,
-            summGenSize=60)
+            summGenSize=200)
 
     if params['useGPU']:
         model.cuda()
@@ -375,25 +375,32 @@ def similarity_cosine(vec1, vec2):
 
 
 def rouge_scores(target, generated, word2vec, vocabulary):
+    scores = []
+
     rouge = Rouge()
-    tar = []
-    ref = []
 
-    for key in target:
-        try:
-            if vocabulary['ind2word'][str(key.item())] != 'UNK':
-                tar.append(vocabulary['ind2word'][str(key.item())])
-        except:
-            pass
+    for i in range(len(target)):
+        tar = []
+        ref = []
 
-    for key in generated:
-        try:
-            if vocabulary['ind2word'][str(key.item())] != 'UNK':
-                ref.append(vocabulary['ind2word'][str(key.item())])
-        except:
-            pass
+        for key in target[i]:
+            try:
+                if vocabulary['ind2word'][str(key.item())] != 'UNK':
+                    tar.append(vocabulary['ind2word'][str(key.item())])
+            except:
+                pass
 
-    return rouge.get_scores(' '.join(ref), ' '.join(tar), avg=True)
+        for key in generated[i]:
+            try:
+                if vocabulary['ind2word'][str(key.item())] != 'UNK':
+                    ref.append(vocabulary['ind2word'][str(key.item())])
+            except:
+                pass
+
+        score = rouge.get_scores(
+            ' '.join(ref), ' '.join(tar), avg=True)
+        scores.append(score)
+    return scores
 
 
 # -------------------------------------------------------------------
@@ -422,8 +429,12 @@ def levenshtein_reward(target, generated, word2vec, vocabulary):
             except:
                 pass
 
-        rewards.append(1 - normalized_levenshtein.distance(
-            ' '.join(ref), ' '.join(tar)))
+        reward = 1 - normalized_levenshtein.distance(
+            ' '.join(ref), ' '.join(tar))
+        if reward == 0:
+            rewards.append(-1)
+        else:
+            rewards.append(reward)
 
     return torch.tensor(rewards)
 
@@ -434,7 +445,12 @@ def word2vec_reward(target, generated, word2vec, vocabulary):
     for i in range(len(target)):
         tar = word2vec_emb(target[i], word2vec, vocabulary)
         gen = word2vec_emb(generated[i], word2vec, vocabulary)
-        rewards.append(similarity_cosine(tar.mean(axis=0), gen.mean(axis=0)))
+
+        reward = similarity_cosine(tar.mean(axis=0), gen.mean(axis=0))
+        if reward == 0:
+            rewards.append(-1)
+        else:
+            rewards.append(reward)
 
     return torch.tensor(rewards)
 
@@ -462,7 +478,11 @@ def rougel_f1_reward(target, generated, word2vec, vocabulary):
             except:
                 pass
 
-        rewards.append(rouge.get_scores(
-            ' '.join(ref), ' '.join(tar), avg=True)['rouge-l']['f'])
+        reward = rouge.get_scores(
+            ' '.join(ref), ' '.join(tar), avg=True)['rouge-l']['f']
+        if reward == 0:
+            rewards.append(-1)
+        else:
+            rewards.append(reward)
 
     return torch.tensor(rewards)

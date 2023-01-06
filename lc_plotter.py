@@ -60,16 +60,7 @@ def plot_qbot_vis(path):
 
                 fig.savefig("plots/%s/qbot/%s.png" % (path, key))
         except:
-            if (key != 'rouge' and key != 'rounds' and key != 'iterIds'):
-                # Data for plotting
-                if len(data[key]) == 0:
-                    continue
-                fig, ax = plt.subplots()
-                ax.plot(data['iterIds'], data[key][::2])
-                ax.set(xlabel='Iterations', ylabel=key, title='')
-                ax.grid()
-
-                fig.savefig("plots/%s/qbot/%s.png" % (path, key))
+            pass
 
 
 def create_plots(path):
