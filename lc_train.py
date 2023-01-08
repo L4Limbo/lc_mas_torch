@@ -1,4 +1,5 @@
 from eval_utils.lc_rank_questioner import rankQBot
+from gensim import similarities
 import lc_plotter
 import os
 import gc
@@ -65,6 +66,10 @@ for key in transfer:
 # Create save path and checkpoints folder
 os.makedirs('checkpoints', exist_ok=True)
 os.mkdir(params['savePath'])
+
+tmstp = datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
+path = './plot_data/json_%s' % tmstp
+os.makedirs(path,  exist_ok=True)
 
 # Loading Modules
 parameters = []
@@ -211,6 +216,7 @@ for epochId, idx, batch in batch_iter(dataloader):
     qBotLoss = 0
     aBotLoss = 0
     rlLoss = 0
+    reward = 0
     summLoss = 0
     qBotRLLoss = 0
     sumGenRLLoss = 0
@@ -234,12 +240,15 @@ for epochId, idx, batch in batch_iter(dataloader):
     # Q-Bot summary generation only occurs if Q-Bot is present
     if params['trainMode'] in ['sl-qbot', 'rl-full-QAf']:
         # TODO LIMBO: REWARD FUNCTION
-
+        predSummary = qBot.predictSummary()
         summLogProbs = qBot.forwardSumm(summary=summary)
         prevSummDist = utils.maskedNll(summLogProbs,
                                        summary.contiguous())
         summLoss += torch.mean(prevSummDist)
         prevSummDist = torch.mean(prevSummDist)
+
+        prev_sim = utils.rougel_f1_reward(target=summary, generated=qBot.predictSummary()[
+                                              0], word2vec=word2vec, vocabulary=vocabulary)
 
     # Iterating over dialog rounds
     for round in range(numRounds):
@@ -333,6 +342,9 @@ for epochId, idx, batch in batch_iter(dataloader):
             summDist = torch.mean(summDist)
             summLoss += summDist
 
+            sim = utils.rougel_f1_reward(target=summary, generated=qBot.predictSummary()[
+                                      0], word2vec=word2vec, vocabulary=vocabulary)
+
         # A-Bot and Q-Bot interacting in RL rounds
         if (params['trainMode'] == 'rl-full-QAf') and round >= rlRound:
             # Run one round of conversation
@@ -359,8 +371,10 @@ for epochId, idx, batch in batch_iter(dataloader):
             
             RL Loss can be applied with RwB-Hinge
             '''
-            reward = utils.levenshtein_reward(target=summary, generated=qBot.predictSummary()[
-                                              0], word2vec=word2vec, vocabulary=vocabulary)
+            sim = utils.rougel_f1_reward(target=summary, generated=qBot.predictSummary()[
+                                              0], word2vec=word2vec, vocabulary=vocabulary) 
+            reward = sim - prev_sim
+            prev_sim = sim
 
             qBotRLLoss = qBot.reinforce(reward)
             sumGenRLLoss = qBot.reinforceSumm(reward)
@@ -419,6 +433,7 @@ for epochId, idx, batch in batch_iter(dataloader):
         # plots
         print(printFormat % tuple(printInfo))
         if params['trainMode'] == 'rl-full-QAf':
+            print("Reward: ", reward)
             train_vis['reward'].append(float(torch.mean(reward)))
         train_vis['iterIds'].append(iterId)
         train_vis['aBotLoss'].append(float(aBotLoss))
@@ -449,16 +464,16 @@ for epochId, idx, batch in batch_iter(dataloader):
             for metric, value in rankMetrics.items():
                 abot_vis[metric].append(value.astype(float))
 
-        if qBot:
-            qbot_vis['iterIds'].append(iterId)
-            rankMetrics = rankQBot(
-                qBot, dataset, 'val', word2vec=word2vec, vocabulary=vocabulary, exampleLimit=32 * params['batchSize'])
+        # if qBot:
+        #     qbot_vis['iterIds'].append(iterId)
+        #     rankMetrics = rankQBot(
+        #         qBot, dataset, 'val', word2vec=word2vec, vocabulary=vocabulary, exampleLimit=32 * params['batchSize'])
 
-            for metric, value in rankMetrics.items():
-                if metric != 'rouge':
-                    qbot_vis[metric].append(float(value))
-                else:
-                    qbot_vis[metric].append(value)
+        #     for metric, value in rankMetrics.items():
+        #         if metric != 'rouge':
+        #             qbot_vis[metric].append(float(value))
+        #         else:
+        #             qbot_vis[metric].append(value)
 
     # Save the model after every epoch
     if iterId % numIterPerEpoch == 0:
@@ -476,32 +491,28 @@ for epochId, idx, batch in batch_iter(dataloader):
             print('Saving model: ' + saveFile)
             utils.saveModel(qBot, optimizer, saveFile, params)
 
+            print('Saving data for plots ... ')
+
+        try:
+            with open('%s/train_vis.json' % path, 'w') as jsonFile:
+                jsonFile.write(json.dumps(train_vis, indent=4))
+        except:
+            print('didnt save train_vis')
+
+        try:
+            with open('%s/abot_vis.json' % path, 'w') as jsonFile:
+                jsonFile.write(json.dumps(abot_vis, indent=4))
+        except:
+            print('didnt save abot_vis')
+
+        try:
+            with open('%s/qbot_vis.json' % path, 'w') as jsonFile:
+                jsonFile.write(json.dumps(qbot_vis, indent=4))
+        except:
+            print('didnt save qbot_vis')
+
 
 print('Training Session finished in %s' % (started_time-timer()))
-
-print('Saving data for plots ... ')
-tmstp = datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
-path = './plot_data/json_%s' % tmstp
-os.makedirs(path,  exist_ok=True)
-
-try:
-    with open('%s/train_vis.json' % path, 'w') as jsonFile:
-        jsonFile.write(json.dumps(train_vis, indent=4))
-except:
-    print('didnt save train_vis')
-
-try:
-    with open('%s/abot_vis.json' % path, 'w') as jsonFile:
-        jsonFile.write(json.dumps(abot_vis, indent=4))
-except:
-    print('didnt save abot_vis')
-
-try:
-    with open('%s/qbot_vis.json' % path, 'w') as jsonFile:
-        jsonFile.write(json.dumps(qbot_vis, indent=4))
-except:
-    print('didnt save qbot_vis')
-
 print('Creating Plots ... ')
 lc_plotter.create_plots('json_%s' % tmstp)
 

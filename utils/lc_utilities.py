@@ -370,8 +370,8 @@ def word2vec_emb(sequence, word2vec, vocabulary):
 
 
 def similarity_cosine(vec1, vec2):
-    cosine_similarity = spatial.distance.cosine(vec1, vec2)
-    return cosine_similarity
+    cosine_distance = spatial.distance.cosine(vec1, vec2)
+    return 1-cosine_distance
 
 
 def rouge_scores(target, generated, word2vec, vocabulary):
@@ -431,10 +431,7 @@ def levenshtein_reward(target, generated, word2vec, vocabulary):
 
         reward = 1 - normalized_levenshtein.distance(
             ' '.join(ref), ' '.join(tar))
-        if reward == 0:
-            rewards.append(-1)
-        else:
-            rewards.append(reward)
+        rewards.append(reward)
 
     return torch.tensor(rewards)
 
@@ -447,10 +444,7 @@ def word2vec_reward(target, generated, word2vec, vocabulary):
         gen = word2vec_emb(generated[i], word2vec, vocabulary)
 
         reward = similarity_cosine(tar.mean(axis=0), gen.mean(axis=0))
-        if reward == 0:
-            rewards.append(-1)
-        else:
-            rewards.append(reward)
+        rewards.append(reward)
 
     return torch.tensor(rewards)
 
@@ -480,9 +474,6 @@ def rougel_f1_reward(target, generated, word2vec, vocabulary):
 
         reward = rouge.get_scores(
             ' '.join(ref), ' '.join(tar), avg=True)['rouge-l']['f']
-        if reward == 0:
-            rewards.append(-1)
-        else:
-            rewards.append(reward)
+        rewards.append(reward)
 
     return torch.tensor(rewards)
