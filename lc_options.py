@@ -77,7 +77,7 @@ def readCommandLine(argv=None):
     parser.add_argument('-trainMode', default='rl-full-QAf',
                         help='What should train.py do?',
                         choices=['sl-abot', 'sl-qbot', 'rl-full-QAf'])
-    parser.add_argument('-numRounds', default=20, type=int,
+    parser.add_argument('-numRounds', default=10, type=int,
                         help='Number of rounds of dialog (max 10)')
     parser.add_argument('-batchSize', default=5, type=int,
                         help='Batch size (number of threads) '
@@ -87,7 +87,7 @@ def readCommandLine(argv=None):
     parser.add_argument('-minLRate', default=5e-5, type=float,
                         help='Minimum learning rate')
     parser.add_argument('-dropout', default=0.1, type=float, help='Dropout')
-    parser.add_argument('-numEpochs', default=10, type=int, help='Epochs')
+    parser.add_argument('-numEpochs', default=20, type=int, help='Epochs')
     parser.add_argument('-lrDecayRate', default=0.999962372474343, type=float,
                         help='Decay for learning rate')
     parser.add_argument('-CELossCoeff', default=1, type=float,

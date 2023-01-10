@@ -42,6 +42,7 @@ word2vec = KeyedVectors.load_word2vec_format(
 
 # Read the command line options
 params = lc_options.readCommandLine()
+params['useGPU'] = True
 
 # train modes : 'rl-full-QAf', 'sl-abot', 'sl-qbot'
 # params['trainMode'] = 'sl-abot'
@@ -209,6 +210,7 @@ for epochId, idx, batch in batch_iter(dataloader):
     options = Variable(batch['opt'], requires_grad=False)
     optionLens = Variable(batch['opt_len'], requires_grad=False)
     gtAnsId = Variable(batch['ans_id'], requires_grad=False)
+    reward = Variable(torch.empty(params['batchSize']), requires_grad=False).cuda()
 
     # Initializing optimizer and losses
     optimizer.zero_grad()
@@ -247,7 +249,7 @@ for epochId, idx, batch in batch_iter(dataloader):
         summLoss += torch.mean(prevSummDist)
         prevSummDist = torch.mean(prevSummDist)
 
-        prev_sim = utils.rougel_f1_reward(target=summary, generated=qBot.predictSummary()[
+        prev_sim = utils.word2vec_reward(target=summary, generated=qBot.predictSummary()[
                                               0], word2vec=word2vec, vocabulary=vocabulary)
 
     # Iterating over dialog rounds
@@ -342,7 +344,7 @@ for epochId, idx, batch in batch_iter(dataloader):
             summDist = torch.mean(summDist)
             summLoss += summDist
 
-            sim = utils.rougel_f1_reward(target=summary, generated=qBot.predictSummary()[
+            sim = utils.word2vec_reward(target=summary, generated=qBot.predictSummary()[
                                       0], word2vec=word2vec, vocabulary=vocabulary)
 
         # A-Bot and Q-Bot interacting in RL rounds
@@ -371,9 +373,10 @@ for epochId, idx, batch in batch_iter(dataloader):
             
             RL Loss can be applied with RwB-Hinge
             '''
-            sim = utils.rougel_f1_reward(target=summary, generated=qBot.predictSummary()[
+            sim = utils.word2vec_reward(target=summary, generated=qBot.predictSummary()[
                                               0], word2vec=word2vec, vocabulary=vocabulary) 
             reward = sim - prev_sim
+            reward = reward.cuda()
             prev_sim = sim
 
             qBotRLLoss = qBot.reinforce(reward)
