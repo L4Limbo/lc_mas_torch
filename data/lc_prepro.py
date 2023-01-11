@@ -13,6 +13,12 @@ nltk.download('punkt')
 nltk.download('stopwords')
 stop_words = stopwords.words('english')
 
+MAX_QUESTION_LEN = 30
+MAX_ANSWER_LEN = 30
+MAX_DOCUMENT_LEN = 1400
+MAX_SUMMARY_LEN = 60
+NUMBER_OF_ROUNDS = 10
+
 
 def tokenize_data(data, word_count=False):
     '''
@@ -22,14 +28,10 @@ def tokenize_data(data, word_count=False):
     res, word_counts = {}, {}
 
     print('Tokenizing data and documents...')
-
     for i in data['data']['dialogs']:
         summary_id = i['summary']
-
         words = nltk.word_tokenize(i['document'])
-
-        words = [word.lower() for word in words if word.isalpha()]
-
+        words = [word.lower() for word in words if word.isalnum()]
         document = word_tokenize(' '.join(words))
         clear_document = []
         for word in document:
@@ -41,21 +43,18 @@ def tokenize_data(data, word_count=False):
     ques_toks, ans_toks = [], []
     for i in data['data']['questions']:
         words = nltk.word_tokenize(i)
-
-        words = [word.lower() for word in words if word.isalpha()]
-
+        words = [word.lower() for word in words if word.isalnum()]
         ques_toks.append(word_tokenize(' '.join(words) + '?'))
         clear_ques = []
         for word in ques_toks:
             if (word not in stop_words):
                 clear_ques.append(word)
+                
     print('Tokenizing answers...')
     for i in data['data']['answers']:
         words = nltk.word_tokenize(i)
-
-        words = [word.lower() for word in words if word.isalpha()]
+        words = [word.lower() for word in words if word.isalnum()]
         ans_toks.append(word_tokenize(' '.join(words)))
-
         clear_ans = []
         for word in ans_toks:
             if (word not in stop_words):
@@ -64,16 +63,15 @@ def tokenize_data(data, word_count=False):
     for i in data['data']['dialogs']:
         # last round of dialog will not have answer for test split
         if 'answer' not in i['dialog'][-1]:
-            i['dialog'][-1]['answer'] = random.choice(
-                range(len(data['data']['answers'])))
+            i['dialog'][-1]['answer'] = -1
         res[i['summary']]['num_rounds'] = len(i['dialog'])
         # right-pad i['dialog'] with empty question-answer pairs at the end
-        while len(i['dialog']) < 10:
+        while len(i['dialog']) < NUMBER_OF_ROUNDS:
             i['dialog'].append({'question': random.choice(range(
                 len(data['data']['questions']))), 'answer': random.choice(range(len(data['data']['answers'])))})
         res[i['summary']]['dialog'] = i['dialog']
         if word_count == True:
-            for j in range(10):
+            for j in range(NUMBER_OF_ROUNDS):
                 question = clear_ques[i['dialog'][j]['question']]
                 answer = clear_ans[i['dialog'][j]['answer']]
                 for word in question + answer:
@@ -84,11 +82,9 @@ def tokenize_data(data, word_count=False):
 
 def encode_summaries(data_toks, word2ind):
     res = {}
-
     for key in data_toks.keys():
         res[key] = [word2ind.get(word, word2ind['UNK'])
-                    for word in data_toks[key]][:200]
-
+                    for word in data_toks[key]][:MAX_SUMMARY_LEN]
     return res
 
 
@@ -134,8 +130,8 @@ def split_data(json_data, train_path, val_path, test_path):
     val_data['data']['answers'] = json_data['data']['answers'][:]
     test_data['data']['answers'] = json_data['data']['answers'][:]
 
-    train_data['data']['dialogs'] = json_data['data']['dialogs'][0:117]
-    val_data['data']['dialogs'] = json_data['data']['dialogs'][117:]
+    train_data['data']['dialogs'] = json_data['data']['dialogs'][0:9200]
+    val_data['data']['dialogs'] = json_data['data']['dialogs'][9200:]
     # test_data['data']['dialogs'] = json_data['data']['dialogs'][124:]
 
     with open(train_path, 'w') as jsonFile:
@@ -158,7 +154,7 @@ def create_data_mats(data_toks, ques_inds, ans_inds, dtype):
     # create summary lists and document data mats
     summary_list = []
     summary_index = np.zeros(num_threads)
-    max_doc_len = 1400
+    max_doc_len = MAX_DOCUMENT_LEN
     documents = np.zeros([num_threads, max_doc_len])
     document_len = np.zeros(num_threads, dtype=np.int)
     summary_ids = list(data_toks.keys())
@@ -177,9 +173,9 @@ def create_data_mats(data_toks, ques_inds, ans_inds, dtype):
         documents[i][0:document_len[i]
                      ] = data_toks[summary_id]['document_inds'][0:max_doc_len]
 
-    num_rounds = 10
-    max_ques_len = 40
-    max_ans_len = 40
+    num_rounds = NUMBER_OF_ROUNDS
+    max_ques_len = MAX_ANSWER_LEN
+    max_ans_len = MAX_QUESTION_LEN
 
     questions = np.zeros([num_threads, num_rounds, max_ques_len])
     answers = np.zeros([num_threads, num_rounds, max_ans_len])
@@ -203,23 +199,24 @@ def create_data_mats(data_toks, ques_inds, ans_inds, dtype):
 
     # create ground truth answer and options data mats
     answer_index = np.zeros([num_threads, num_rounds])
-    num_rounds_list = np.full(num_threads, 10)
-    options = np.zeros([num_threads, num_rounds, 10])
+    num_rounds_list = np.full(num_threads, NUMBER_OF_ROUNDS)
+    options = np.zeros([num_threads, num_rounds, 100])
 
     for i in range(num_threads):
         summary_id = summary_ids[i]
         for j in range(num_rounds):
             if (data_toks[summary_id]['dialog'][j]['answer'] != -1):
-                rand_padding = np.array([random.choice(range(num_threads))
-                                        for i in range(num_threads)])
+                rand_padding = np.array([random.choice(range(100))
+                                        for i in range(100)])
 
                 data_toks[summary_id]['dialog'][j]['answer_options'] = [
-                    random.choice(range(num_threads)) for i in range(10)]
+                    random.choice(range(100)) for i in range(100)]
                 data_toks[summary_id]['dialog'][j]['gt_index'] = random.choice(
-                    range(10))
+                    range(100))
                 options[i][j] = np.concatenate((np.array(
-                    data_toks[summary_id]['dialog'][j]['answer_options'][:10]), rand_padding[:10-len(data_toks[summary_id]['dialog'][j]['answer_options'][:10])])) + 1
+                    data_toks[summary_id]['dialog'][j]['answer_options'][:100]), rand_padding[:100-len(data_toks[summary_id]['dialog'][j]['answer_options'][:100])])) + 1
                 answer_index[i][j] = data_toks[summary_id]['dialog'][j]['gt_index'] + 1
+                
     options_list = np.zeros([len(ans_inds), max_ans_len])
     options_len = np.zeros(len(ans_inds), dtype=np.int)
 
@@ -238,7 +235,7 @@ def tokenize_summaries():
     for key in json_data.keys():
         words = nltk.word_tokenize(json_data[key])
 
-        words = [word.lower() for word in words if word.isalpha()]
+        words = [word.lower() for word in words if word.isalnum()]
 
         res[key] = word_tokenize(' '.join(words))
         clear_summ = []
@@ -247,7 +244,7 @@ def tokenize_summaries():
                 clear_summ.append(word)
         res[key] = clear_summ
 
-        while len(res[key]) < 200:
+        while len(res[key]) < MAX_SUMMARY_LEN:
             res[key].append(' ')
 
     for key in res.keys():
@@ -264,9 +261,7 @@ def tokenize_documents():
 
     for dialog in json_data['data']['dialogs']:
         words = nltk.word_tokenize(dialog['document'])
-
-        words = [word.lower() for word in words if word.isalpha()]
-
+        words = [word.lower() for word in words if word.isalnum()]
         res[dialog['summary']] = word_tokenize(' '.join(words))
         clear_docs = []
         for word in res[dialog['summary']]:

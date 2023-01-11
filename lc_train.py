@@ -4,7 +4,6 @@ import lc_plotter
 import os
 import gc
 import random
-import pprint
 from six.moves import range
 from markdown2 import markdown
 from time import gmtime, strftime
@@ -42,10 +41,6 @@ word2vec = KeyedVectors.load_word2vec_format(
 
 # Read the command line options
 params = lc_options.readCommandLine()
-params['useGPU'] = True
-
-# train modes : 'rl-full-QAf', 'sl-abot', 'sl-qbot'
-# params['trainMode'] = 'sl-abot'
 
 # Seed rng for reproducibility
 random.seed(params['randomSeed'])
@@ -90,8 +85,6 @@ if params['trainMode'] in ['sl-qbot', 'rl-full-QAf']:
     for key in loadedParams:
         params[key] = loadedParams[key]
 
-    if (params['trainMode'] == 'rl-full-QAf') and params['freezeQFeatNet']:
-        qBot.freezeFeatNet()
     # Filtering parameters which require a gradient update
     parameters.extend(filter(lambda p: p.requires_grad, qBot.parameters()))
 
@@ -145,32 +138,24 @@ train_vis = {
     'qBotLoss': [],
     'rlLoss': [],
     'summLoss': [],
+    'qBotRLLoss': [],
+    'sumGenRLLoss':[],
+    'aBotRLLoss':[],
     'loss': [],
     'runningLoss': [],
-    'rounds': [],
     'reward': [],
     'learning_rate': [lRate]
 }
 
-abot_vis = {
+abot_vis_val = {
     'iterIds': [],
     'r1': [],
     'r5': [],
+    'r10': [],
     'mean': [],
     'mrr': [],
     'logProbsMean': [],
 }
-
-qbot_vis = {
-    'iterIds': [],
-    'percentile': [],
-    'logProbsMean': [],
-    'summLossMean': [],
-    'logProbs': [],
-    'summLoss': [],
-    'rouge': [],
-}
-
 
 # ---------------------------------------------------------------------------------------
 # Training
@@ -391,10 +376,10 @@ for epochId, idx, batch in batch_iter(dataloader):
     # Loss coefficients
     rlCoeff = 1
     rlLoss = rlLoss * rlCoeff
-    summLoss = summLoss * params['featLossCoeff']
+    summLoss = summLoss * params['summLossCoeff']
     # Averaging over rounds
-    qBotLoss = (params['CELossCoeff'] * qBotLoss) / numRounds
-    aBotLoss = (params['CELossCoeff'] * aBotLoss) / numRounds
+    qBotLoss = (qBotLoss) / numRounds
+    aBotLoss = (aBotLoss) / numRounds
     summLoss = summLoss / numRounds
     rlLoss = rlLoss / numRounds
     # Total loss
@@ -436,15 +421,18 @@ for epochId, idx, batch in batch_iter(dataloader):
         # plots
         print(printFormat % tuple(printInfo))
         if params['trainMode'] == 'rl-full-QAf':
-            print("Reward: ", reward)
             train_vis['reward'].append(float(torch.mean(reward)))
         train_vis['iterIds'].append(iterId)
         train_vis['aBotLoss'].append(float(aBotLoss))
         train_vis['qBotLoss'].append(float(qBotLoss))
         train_vis['rlLoss'].append(float(rlLoss))
         train_vis['summLoss'].append(float(summLoss))
+        # train_vis['qBotRLLoss'].append(float(qBotRLLoss))
+        # train_vis['sumGenRLLoss'].append(float(sumGenRLLoss))
+        # train_vis['aBotRLLoss'].append(float(aBotRLLoss))
         train_vis['loss'].append(float(loss))
         train_vis['runningLoss'].append(float(runningLoss))
+        
 
     # TODO: Evaluate every epoch
     # print('Epoch validations ...')
@@ -459,24 +447,13 @@ for epochId, idx, batch in batch_iter(dataloader):
         if qBot:
             qBot.eval()
 
-        if aBot and 'ques' in batch:
-            abot_vis['iterIds'].append(iterId)
-            rankMetrics = rankABot(
-                aBot, dataset, 'val', scoringFunction=utils.maskedNll, exampleLimit=32 * params['batchSize'])
-
-            for metric, value in rankMetrics.items():
-                abot_vis[metric].append(value.astype(float))
-
-        # if qBot:
-        #     qbot_vis['iterIds'].append(iterId)
-        #     rankMetrics = rankQBot(
-        #         qBot, dataset, 'val', word2vec=word2vec, vocabulary=vocabulary, exampleLimit=32 * params['batchSize'])
+        # if aBot and 'ques' in batch:
+        #     abot_vis_val['iterIds'].append(iterId)
+        #     rankMetrics = rankABot(
+        #         aBot, dataset, 'val', scoringFunction=utils.maskedNll, exampleLimit=32 * params['batchSize'])
 
         #     for metric, value in rankMetrics.items():
-        #         if metric != 'rouge':
-        #             qbot_vis[metric].append(float(value))
-        #         else:
-        #             qbot_vis[metric].append(value)
+        #         abot_vis_val[metric].append(value.astype(float))
 
     # Save the model after every epoch
     if iterId % numIterPerEpoch == 0:
@@ -503,16 +480,10 @@ for epochId, idx, batch in batch_iter(dataloader):
             print('didnt save train_vis')
 
         try:
-            with open('%s/abot_vis.json' % path, 'w') as jsonFile:
-                jsonFile.write(json.dumps(abot_vis, indent=4))
+            with open('%s/abot_vis_val.json' % path, 'w') as jsonFile:
+                jsonFile.write(json.dumps(abot_vis_val, indent=4))
         except:
-            print('didnt save abot_vis')
-
-        try:
-            with open('%s/qbot_vis.json' % path, 'w') as jsonFile:
-                jsonFile.write(json.dumps(qbot_vis, indent=4))
-        except:
-            print('didnt save qbot_vis')
+            print('didnt save abot_vis_val')
 
 
 print('Training Session finished in %s' % (started_time-timer()))

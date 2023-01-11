@@ -477,3 +477,35 @@ def rougel_f1_reward(target, generated, word2vec, vocabulary):
         rewards.append(reward)
 
     return torch.tensor(rewards)
+
+
+def rougel_comb_reward(target, generated, word2vec, vocabulary):
+    rewards = []
+
+    rouge = Rouge()
+
+    for i in range(len(target)):
+        tar = []
+        ref = []
+
+        for key in target[i]:
+            try:
+                if vocabulary['ind2word'][str(key.item())] != 'UNK':
+                    tar.append(vocabulary['ind2word'][str(key.item())])
+            except:
+                pass
+
+        for key in generated[i]:
+            try:
+                if vocabulary['ind2word'][str(key.item())] != 'UNK':
+                    ref.append(vocabulary['ind2word'][str(key.item())])
+            except:
+                pass
+
+        reward = 0.25 * rouge.get_scores(
+            ' '.join(ref), ' '.join(tar), avg=True)['rouge-1']['f'] + 1 * rouge.get_scores(
+            ' '.join(ref), ' '.join(tar), avg=True)['rouge-2']['f'] + 0.25 * rouge.get_scores(
+            ' '.join(ref), ' '.join(tar), avg=True)['rouge-l']['f'] 
+        rewards.append(reward)
+
+    return torch.tensor(rewards)

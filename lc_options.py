@@ -12,7 +12,7 @@ def readCommandLine(argv=None):
     # -------------------------------------------------------------------------
     # Data input settings
     parser.add_argument('-inputSumm', default='data/processed_data/summ.json',
-                        help='HDF5 file with summary features')
+                        help='json file with summaries')
     parser.add_argument('-inputQues', default='data/processed_data/processed_data.h5',
                         help='HDF5 file with preprocessed questions')
     parser.add_argument('-inputJson', default='data/processed_data/processed_data.json',
@@ -33,15 +33,6 @@ def readCommandLine(argv=None):
                         help='Copy weights from qbot model at this path')
     parser.add_argument('-continue', action='store_true',
                         help='Continue training from last epoch')
-    parser.add_argument('-enableVisdom', type=int, default=0,
-                        help='Flag for enabling visdom logging')
-    parser.add_argument('-visdomEnv', type=str, default='',
-                        help='Name of visdom environment for plotting')
-    parser.add_argument('-visdomServer', type=str, default='127.0.0.1',
-                        help='Address of visdom server instance')
-    parser.add_argument('-visdomServerPort', type=int, default=8893,
-                        help='Port of visdom server instance')
-
     # -------------------------------------------------------------------------
     # Model params for both a-bot and q-bot
     parser.add_argument('-randomSeed', default=32, type=int,
@@ -87,17 +78,15 @@ def readCommandLine(argv=None):
     parser.add_argument('-minLRate', default=5e-5, type=float,
                         help='Minimum learning rate')
     parser.add_argument('-dropout', default=0.1, type=float, help='Dropout')
-    parser.add_argument('-numEpochs', default=20, type=int, help='Epochs')
+    parser.add_argument('-numEpochs', default=5, type=int, help='Epochs')
     parser.add_argument('-lrDecayRate', default=0.999962372474343, type=float,
                         help='Decay for learning rate')
     parser.add_argument('-CELossCoeff', default=1, type=float,
                         help='Coefficient for cross entropy loss')
-    parser.add_argument('-featLossCoeff', default=1, type=float,
-                        help='Coefficient for feature regression loss')
+    parser.add_argument('-summLossCoeff', default=1, type=float,
+                        help='Coefficient for summarization loss')
     parser.add_argument('-useCurriculum', default=1, type=int,
                         help='Use curriculum or for RL training (1) or not (0)')
-    parser.add_argument('-freezeQFeatNet', default=0, type=int,
-                        help='Freeze weights of Q-bot feature network')
     parser.add_argument('-rlAbotReward', default=1, type=int,
                         help='Choose whether RL reward goes to A-Bot')
 

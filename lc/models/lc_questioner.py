@@ -57,12 +57,6 @@ class Questioner(Agent):
         self.questions = []
         self.encoder.reset()
 
-    def freezeFeatNet(self):
-        nets = [self.featureNet]
-        for net in nets:
-            for param in net.parameters():
-                param.requires_grad = False
-
     def observe(self, round, ques=None, **kwargs):
         '''
         Update Q-Bot percepts. See self.encoder.observe() in the corresponding
@@ -114,7 +108,7 @@ class Questioner(Agent):
 
         return questions, quesLens
 
-    def predictSummary(self, inference='sample', beamSize=5, maxSeqLen=60):
+    def predictSummary(self, inference='sample', beamSize=5, maxSeqLen=200):
         '''
         Predict/guess an fc7 vector given the current conversation history. This can
         be called at round 0 after the document is observed, and at end of every round

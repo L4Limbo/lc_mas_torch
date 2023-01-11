@@ -45,7 +45,7 @@ class Encoder(nn.Module):
             dialogInputSize = 2 * self.rnnHiddenSize
         elif self.useSumm == 'late':
             quesInputSize = self.embedSize
-            dialogInputSize = 2 * self.rnnHiddenSize
+            dialogInputSize = 3 * self.rnnHiddenSize
         elif self.isAnswerer:
             quesInputSize = self.embedSize
             dialogInputSize = 2 * self.rnnHiddenSize
@@ -225,10 +225,6 @@ class Encoder(nn.Module):
         '''Embed questions'''
         quesIn = self.questionEmbeds[qIdx]
         quesLens = self.questionLens[qIdx]
-        if self.useSumm == 'early':
-            summary = self.summaryEmbed.unsqueeze(
-                1).repeat(1, quesIn.size(1), 1)
-            quesIn = torch.cat([quesIn, summary], 2)
         qEmbed, states = utils.dynamicRNN(
             self.quesRNN, quesIn, quesLens, returnStates=True)
         quesRNNstates = states
@@ -238,6 +234,16 @@ class Encoder(nn.Module):
         currIns = [self.factEmbeds[histIdx][0]]
         if self.isAnswerer:
             currIns.append(self.questionRNNStates[histIdx][0])
+        if self.useSumm:
+            docLSTM = nn.LSTM(
+                self.embedSize,
+                self.rnnHiddenSize,
+                self.numLayers,
+                batch_first=True,
+                dropout=0).cuda()
+            dEmbed, states = utils.dynamicRNN(
+               docLSTM, self.documentEmbed, self.documentLens, returnStates=True)   
+            currIns.append(dEmbed)
         hist_t = torch.cat(currIns, -1)
         self.dialogRNNInputs.append(hist_t)
 
@@ -293,7 +299,7 @@ class Encoder(nn.Module):
         while len(self.dialogHiddens) <= round:
             dialogIdx = len(self.dialogHiddens)
             self.embedDialog(dialogIdx)
-
+        
         # Latest dialogRNN hidden state
         dialogHidden = self.dialogHiddens[-1][0]
 

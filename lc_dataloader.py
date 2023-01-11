@@ -5,7 +5,6 @@ import numpy as np
 import torch
 from six import iteritems
 from six.moves import range
-from sklearn.preprocessing import normalize
 from torch.utils.data import Dataset
 
 
