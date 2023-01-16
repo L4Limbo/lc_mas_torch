@@ -94,9 +94,9 @@ def readCommandLine(argv=None):
     
     # -------------------------------------------------------------------------
     # Reward functions
-    parser.add_argument('-reward', default='rouge',
-                        help='Choose a reward function for RL finetuning',
-                        choices=['rouge', 'levenshtein', 'word2vec','self_critic'])
+    parser.add_argument('-simFunction', default='rouge',
+                        help='Choose a similarity function for reward in RL finetuning',
+                        choices=['rouge', 'levenshtein', 'word2vec', 'self_critic'])
 
     # -------------------------------------------------------------------------
     # Evaluation params

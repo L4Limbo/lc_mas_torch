@@ -488,7 +488,7 @@ def calculate_similarity(target, generated, word2vec, vocabulary, sim_type='roug
     if sim_type == 'rouge':
         return rougel_f1_sim(target, generated, word2vec, vocabulary)
     
-    if sim_type == 'leven':
+    if sim_type == 'levenshtein':
         return levenshtein_sim(target, generated, word2vec, vocabulary)
     
     if sim_type == 'wor2vec':

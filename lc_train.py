@@ -17,7 +17,7 @@ from torch.autograd import Variable
 import lc_options
 from lc_dataloader import LCDataset
 from torch.utils.data import DataLoader
-from eval_utils.lc_rank_answerer import rankABot
+# from eval_utils.lc_rank_answerer import rankABot
 # from eval_utils.lc_rank_questioner import rankQBot
 from utils import lc_utilities as utils
 from gensim.models import KeyedVectors
@@ -32,15 +32,15 @@ from datetime import datetime
 # Setup
 # ---------------------------------------------------------------------------------------
 
-timeStamp = strftime('%d-%b-%y-%X-%a')
-print('Loading Vocabulary and Vectors')
-
-vocabulary = json.load(open('data/processed_data/processed_data.json', 'r'))
-word2vec = KeyedVectors.load_word2vec_format(
-    'data/word2vec/GoogleNews-vectors-negative300.bin', binary=True)
-
 # Read the command line options
 params = lc_options.readCommandLine()
+
+timeStamp = strftime('%d-%b-%y-%X-%a')
+
+print('Loading Vocabulary and Vectors')
+vocabulary = json.load(open(params['input_json'], 'r'))
+word2vec = KeyedVectors.load_word2vec_format(
+    params['word2vec'], binary=True)
 
 # Seed rng for reproducibility
 random.seed(params['randomSeed'])
@@ -50,7 +50,6 @@ if params['useGPU']:
 
 # Setup dataloader
 splits = ['train', 'val']
-
 dataset = LCDataset(params, splits)
 
 # Params to transfer from dataset
@@ -63,6 +62,7 @@ for key in transfer:
 os.makedirs('checkpoints', exist_ok=True)
 os.mkdir(params['savePath'])
 
+# Create plot data path and folder
 tmstp = datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
 path = './plot_data/json_%s' % tmstp
 os.makedirs(path,  exist_ok=True)
@@ -157,6 +157,16 @@ abot_vis_val = {
     'logProbsMean': [],
 }
 
+qbot_vis_val = {
+    'iterIds': [],
+    'logProbsMean': [],
+    'rouge1': [],
+    'rouge2': [],
+    'rougel': [],
+    'word2vec':[],
+    'leven':[],
+}
+
 # ---------------------------------------------------------------------------------------
 # Training
 # ---------------------------------------------------------------------------------------
@@ -195,7 +205,11 @@ for epochId, idx, batch in batch_iter(dataloader):
     options = Variable(batch['opt'], requires_grad=False)
     optionLens = Variable(batch['opt_len'], requires_grad=False)
     gtAnsId = Variable(batch['ans_id'], requires_grad=False)
-    reward = Variable(torch.empty(params['batchSize']), requires_grad=False).cuda()
+    
+    if params['useGPU']:
+        reward = Variable(torch.empty(params['batchSize']), requires_grad=False).cuda()
+    else:
+        reward = Variable(torch.empty(params['batchSize']), requires_grad=False)
 
     # Initializing optimizer and losses
     optimizer.zero_grad()
@@ -226,16 +240,28 @@ for epochId, idx, batch in batch_iter(dataloader):
 
     # Q-Bot summary generation only occurs if Q-Bot is present
     if params['trainMode'] in ['sl-qbot', 'rl-full-QAf']:
-        # TODO LIMBO: REWARD FUNCTION
+       
         predSummary = qBot.predictSummary()
         summLogProbs = qBot.forwardSumm(summary=summary)
         prevSummDist = utils.maskedNll(summLogProbs,
                                        summary.contiguous())
         summLoss += torch.mean(prevSummDist)
         prevSummDist = torch.mean(prevSummDist)
-
-        prev_sim = utils.word2vec_reward(target=summary, generated=qBot.predictSummary()[
-                                              0], word2vec=word2vec, vocabulary=vocabulary)
+        
+        predGreedySummary = qBot.predictSummary(inference='greedy')
+        
+        if params['trainMode'] == 'rl-full-QAf':
+            if params['simFunction'] == 'self_critic':
+                prev_sim = utils.calculate_similarity(target=summary, generated=predSummary[
+                                                    0], word2vec=word2vec, vocabulary=vocabulary, sim_type='rouge_comb')
+                
+                prev_sim_greedy = utils.calculate_similarity(target=summary, generated=predGreedySummary[
+                                                    0], word2vec=word2vec, vocabulary=vocabulary, sim_type='rouge_comb')
+            
+            else:
+                prev_sim = utils.calculate_similarity(target=summary, generated=predSummary[
+                                                    0], word2vec=word2vec, vocabulary=vocabulary, sim_type=params['simFunction'])
+                
 
     # Iterating over dialog rounds
     for round in range(numRounds):
@@ -323,14 +349,25 @@ for epochId, idx, batch in batch_iter(dataloader):
         if summGenerationNet and round < MAX_FEAT_ROUNDS:
             # Make an summary prediction after each round
             predSummary = qBot.predictSummary()
+            predGreedySummary = qBot.predictSummary(inference='greedy')
+
             summLogProbs = qBot.forwardSumm(summary=summary)
             summDist = utils.maskedNll(summLogProbs,
                                        summary.contiguous())
             summDist = torch.mean(summDist)
             summLoss += summDist
-
-            sim = utils.word2vec_reward(target=summary, generated=qBot.predictSummary()[
-                                      0], word2vec=word2vec, vocabulary=vocabulary)
+            
+            if params['trainMode'] == 'rl-full-QAf':
+                if params['simFunction'] == 'self_critic':
+                    sim = utils.calculate_similarity(target=summary, generated=predSummary[
+                                                        0], word2vec=word2vec, vocabulary=vocabulary, sim_type='rouge_comb')
+                    
+                    sim_greedy = utils.calculate_similarity(target=summary, generated=predGreedySummary[
+                                                        0], word2vec=word2vec, vocabulary=vocabulary, sim_type='rouge_comb')
+                
+                else:
+                    sim = utils.calculate_similarity(target=summary, generated=predSummary[
+                                                        0], word2vec=word2vec, vocabulary=vocabulary, sim_type=params['simFunction'])
 
         # A-Bot and Q-Bot interacting in RL rounds
         if (params['trainMode'] == 'rl-full-QAf') and round >= rlRound:
@@ -345,24 +382,38 @@ for epochId, idx, batch in batch_iter(dataloader):
             # Q-Bot generates summary at the end of each round
             # TODO LIMBO: REWARD FUNCTION
             predSummary = qBot.predictSummary()
+            predGreedySummary = qBot.predictSummary(inference='greedy')
+
             summLogProbs = qBot.forwardSumm(summary=summary)
             summDist = utils.maskedNll(summLogProbs,
                                        summary.contiguous())
             summDist = torch.mean(summDist)
 
-            '''
-            Reward Calculation
-            1. Rouge-L F1 (generatedSummary, summary): utils.rougel_f1_reward
-            2. Levenshtein Distance (generatedSummary, summary): utils.levenshtein_reward
-            3. Word2Vec Cosine Similarity (generatedSummary, summary): utils.word2vec_reward
+            if params['trainMode'] == 'rl-full-QAf':
+                if params['simFunction'] == 'self_critic':
+                    sim = utils.calculate_similarity(target=summary, generated=predSummary[
+                                                        0], word2vec=word2vec, vocabulary=vocabulary, sim_type='rouge_comb')
+                    
+                    sim_greedy = utils.calculate_similarity(target=summary, generated=predGreedySummary[
+                                                        0], word2vec=word2vec, vocabulary=vocabulary, sim_type='rouge_comb')
+                
+                else:
+                    sim = utils.calculate_similarity(target=summary, generated=predSummary[
+                                                        0], word2vec=word2vec, vocabulary=vocabulary, sim_type=params['simFunction'])
             
-            RL Loss can be applied with RwB-Hinge
-            '''
-            sim = utils.word2vec_reward(target=summary, generated=qBot.predictSummary()[
-                                              0], word2vec=word2vec, vocabulary=vocabulary) 
+            # Reward Calculation
             reward = sim - prev_sim
-            reward = reward.cuda()
             prev_sim = sim
+
+            if params['simFunction'] == 'self_critic': 
+                reward_greedy = sim_greedy - prev_sim_greedy
+                reward_greedy = reward_greedy
+                prev_sim_greedy = sim_greedy
+                
+                reward = reward - reward_greedy
+
+            if params['useGPU']:
+                reward = reward.cuda()
 
             qBotRLLoss = qBot.reinforce(reward)
             sumGenRLLoss = qBot.reinforceSumm(reward)
@@ -408,7 +459,7 @@ for epochId, idx, batch in batch_iter(dataloader):
             print('Using rl starting at round {}'.format(rlRound))
 
     # Print every now and then
-    if iterId % 10 == 0:
+    if iterId % 30 == 0:
         end_t = timer()
         curEpoch = float(iterId) / numIterPerEpoch
         timeStamp = strftime('%a %d %b %y %X', gmtime())
@@ -420,6 +471,7 @@ for epochId, idx, batch in batch_iter(dataloader):
         start_t = end_t
         # plots
         print(printFormat % tuple(printInfo))
+        
         if params['trainMode'] == 'rl-full-QAf':
             train_vis['reward'].append(float(torch.mean(reward)))
         train_vis['iterIds'].append(iterId)
@@ -427,9 +479,15 @@ for epochId, idx, batch in batch_iter(dataloader):
         train_vis['qBotLoss'].append(float(qBotLoss))
         train_vis['rlLoss'].append(float(rlLoss))
         train_vis['summLoss'].append(float(summLoss))
-        # train_vis['qBotRLLoss'].append(float(qBotRLLoss))
-        # train_vis['sumGenRLLoss'].append(float(sumGenRLLoss))
-        # train_vis['aBotRLLoss'].append(float(aBotRLLoss))
+        try:
+            train_vis['qBotRLLoss'].append(float(qBotRLLoss))
+            train_vis['sumGenRLLoss'].append(float(sumGenRLLoss))
+            train_vis['aBotRLLoss'].append(float(aBotRLLoss))
+        except:
+            train_vis['qBotRLLoss'].append(float(torch.mean(qBotRLLoss)))
+            train_vis['sumGenRLLoss'].append(float(torch.mean(sumGenRLLoss)))
+            train_vis['aBotRLLoss'].append(float(torch.mean(aBotRLLoss)))
+
         train_vis['loss'].append(float(loss))
         train_vis['runningLoss'].append(float(runningLoss))
         
@@ -452,8 +510,15 @@ for epochId, idx, batch in batch_iter(dataloader):
         #     rankMetrics = rankABot(
         #         aBot, dataset, 'val', scoringFunction=utils.maskedNll, exampleLimit=32 * params['batchSize'])
 
-        #     for metric, value in rankMetrics.items():
-        #         abot_vis_val[metric].append(value.astype(float))
+        #     try:
+        #         for metric, value in rankMetrics.items():
+        #             try:
+        #                 abot_vis_val[metric].append(value.astype(float))
+        #             except:
+        #                 pass
+        #     except:
+        #             pass
+              
 
     # Save the model after every epoch
     if iterId % numIterPerEpoch == 0:
