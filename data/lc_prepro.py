@@ -13,11 +13,24 @@ nltk.download('punkt')
 nltk.download('stopwords')
 stop_words = stopwords.words('english')
 
-MAX_QUESTION_LEN = 30
-MAX_ANSWER_LEN = 30
+MAX_QUESTION_LEN = 40
+MAX_ANSWER_LEN = 40
 MAX_DOCUMENT_LEN = 1400
-MAX_SUMMARY_LEN = 60
+MAX_SUMMARY_LEN = 200
 NUMBER_OF_ROUNDS = 10
+
+SPLIT_INDEX = 117
+
+DOC_PATH = './generated_data/gen_dataset.json'
+SUMM_PATH = './generated_data/summary_dataset.json'
+INPUT_PATH = './generated_data/gen_dataset.json'
+TRAIN_PATH = './generated_data/xtrain.json'
+VAL_PATH = './generated_data/xval.json'
+
+# Output Files
+OUTPUT_JSON = './processed_data/processed_data_.json'
+OUTPUT_H5 = './processed_data/processed_data_.h5'
+OUTPUT_SUMM = './processed_data/xsumm_.json'
 
 
 def tokenize_data(data, word_count=False):
@@ -116,7 +129,7 @@ def encode_vocab(data_toks, ques_toks, ans_toks, word2ind):
     return data_toks, ques_inds, ans_inds
 
 
-def split_data(json_data, train_path, val_path, test_path):
+def split_data(json_data, train_path, val_path):
     train_data, val_data, test_data = {
         'data': {}}, {'data': {}}, {'data': {}}
 
@@ -130,18 +143,14 @@ def split_data(json_data, train_path, val_path, test_path):
     val_data['data']['answers'] = json_data['data']['answers'][:]
     test_data['data']['answers'] = json_data['data']['answers'][:]
 
-    train_data['data']['dialogs'] = json_data['data']['dialogs'][0:9200]
-    val_data['data']['dialogs'] = json_data['data']['dialogs'][9200:]
-    # test_data['data']['dialogs'] = json_data['data']['dialogs'][124:]
+    train_data['data']['dialogs'] = json_data['data']['dialogs'][0:SPLIT_INDEX]
+    val_data['data']['dialogs'] = json_data['data']['dialogs'][SPLIT_INDEX:]
 
     with open(train_path, 'w') as jsonFile:
         jsonFile.write(json.dumps(train_data, indent=4))
 
     with open(val_path, 'w') as jsonFile:
         jsonFile.write(json.dumps(val_data, indent=4))
-
-    # with open(test_path, 'w') as jsonFile:
-    #     jsonFile.write(json.dumps(test_data, indent=4))
 
     return train_data, val_data
 
@@ -228,7 +237,7 @@ def create_data_mats(data_toks, ques_inds, ans_inds, dtype):
 
 
 def tokenize_summaries():
-    summ_path = './generated_data/summary_dataset.json'
+    summ_path = SUMM_PATH
     json_data = json.load(open(summ_path))
     res, word_counts_summ = {}, {}
 
@@ -244,8 +253,8 @@ def tokenize_summaries():
                 clear_summ.append(word)
         res[key] = clear_summ
 
-        while len(res[key]) < MAX_SUMMARY_LEN:
-            res[key].append(' ')
+        # while len(res[key]) < MAX_SUMMARY_LEN:
+        #     res[key].append(' ')
 
     for key in res.keys():
         for word in res[key]:
@@ -255,7 +264,7 @@ def tokenize_summaries():
 
 
 def tokenize_documents():
-    doc_path = './generated_data/gen_dataset.json'
+    doc_path = DOC_PATH
     json_data = json.load(open(doc_path))
     res, word_counts_docs = {}, {}
 
@@ -280,14 +289,14 @@ if __name__ == "__main__":
 
     print('Preprocessing ...')
     # Input Files
-    input_path = './generated_data/gen_dataset.json'
-    train_path = './generated_data/train.json'
-    val_path = './generated_data/val.json'
-    test_path = './generated_data/test.json'
+    input_path = INPUT_PATH
+    train_path = TRAIN_PATH
+    val_path = VAL_PATH
 
     # Output Files
-    output_json = './processed_data/processed_data.json'
-    output_h5 = './processed_data/processed_data.h5'
+    output_json = OUTPUT_JSON
+    output_h5 = OUTPUT_H5
+    output_summ = OUTPUT_SUMM
 
     os.makedirs('./processed_data',  exist_ok=True)
 
@@ -298,15 +307,13 @@ if __name__ == "__main__":
     # Split Dataset 75 / 25
     print('Creating Splits ...')
     data_train, data_val = split_data(
-        json_data, train_path, val_path, test_path)
+        json_data, train_path, val_path)
 
     # Tokenizing
     data_train_toks, ques_train_toks, ans_train_toks, word_counts_train = tokenize_data(
         data_train, True)
     data_val_toks, ques_val_toks, ans_val_toks, word_counts_val = tokenize_data(
         data_val, True)
-    # data_test_toks, ques_test_toks, ans_test_toks, word_counts_test = tokenize_data(
-    #     data_test, True)
 
     print('Parsing and Tokenizing summaries')
     summaries_data_toks, word_counts_summ = tokenize_summaries()
@@ -318,15 +325,11 @@ if __name__ == "__main__":
 
     word_counts_all = dict(word_counts_train)
     word_counts_all.update(dict(word_counts_val))
-    # word_counts_all.update(dict(word_counts_test))
     word_counts_all.update(dict(word_counts_summ))
     word_counts_all.update(dict(word_counts_docs))
 
     for word, count in word_counts_val.items():
         word_counts_all[word] = word_counts_all.get(word, 0) + count
-
-    # for word, count in word_counts_test.items():
-    #     word_counts_all[word] = word_counts_all.get(word, 0) + count
 
     for word, count in word_counts_summ.items():
         word_counts_all[word] = word_counts_all.get(word, 0) + count
@@ -346,19 +349,15 @@ if __name__ == "__main__":
         data_train_toks, ques_train_toks, ans_train_toks, word2ind)
     data_val_toks, ques_val_inds, ans_val_inds = encode_vocab(
         data_val_toks, ques_val_toks, ans_val_toks, word2ind)
-    # data_test_toks, ques_test_inds, ans_test_inds = encode_vocab(
-    #     data_test_toks, ques_test_toks, ans_test_toks, word2ind)
 
     summaries_data_toks = encode_summaries(summaries_data_toks, word2ind)
-    json.dump(summaries_data_toks, open('./processed_data/summ.json', 'w'))
+    json.dump(summaries_data_toks, open(output_summ, 'w'))
 
     print('Creating data matrices...')
     documents_train, documents_train_len, questions_train, questions_train_len, answers_train, answers_train_len, options_train, options_train_list, options_train_len, answers_train_index, summarys_train_index, summarys_train_list, _ = create_data_mats(
         data_train_toks, ques_train_inds, ans_train_inds, 'train')
     documents_val, documents_val_len, questions_val, questions_val_len, answers_val, answers_val_len, options_val, options_val_list, options_val_len, answers_val_index, summarys_val_index, summarys_val_list, _ = create_data_mats(
         data_val_toks, ques_val_inds, ans_val_inds, 'val')
-    # documents_test, documents_test_len, questions_test, questions_test_len, answers_test, answers_test_len, options_test, options_test_list, options_test_len, answers_test_index, summarys_test_index, summarys_test_list, num_rounds_test = create_data_mats(
-    #     data_test_toks, ques_test_inds, ans_test_inds, 'test')
 
     print('Saving hdf5...')
     f = h5py.File(output_h5, 'w')
@@ -392,22 +391,6 @@ if __name__ == "__main__":
     f.create_dataset('opt_list_val', dtype='uint32', data=options_val_list)
     f.create_dataset('summ_pos_val', dtype='uint32', data=summarys_val_index)
 
-    # f.create_dataset('ques_test', dtype='uint32', data=questions_test)
-    # f.create_dataset('ques_length_test', dtype='uint32',
-    #                  data=questions_test_len)
-    # f.create_dataset('ans_test', dtype='uint32', data=answers_test)
-    # f.create_dataset('ans_length_test', dtype='uint32', data=answers_test_len)
-    # f.create_dataset('ans_index_test', dtype='uint32', data=answers_test_index)
-    # f.create_dataset('doc_test', dtype='uint32', data=documents_test)
-    # f.create_dataset('doc_length_test', dtype='uint32',
-    #                  data=documents_test_len)
-    # f.create_dataset('opt_test', dtype='uint32', data=options_test)
-    # f.create_dataset('opt_length_test', dtype='uint32', data=options_test_len)
-    # f.create_dataset('opt_list_test', dtype='uint32', data=options_test_list)
-    # f.create_dataset('summ_pos_test', dtype='uint32', data=summarys_test_index)
-
-    # f.create_dataset('num_rounds_test', dtype='uint32', data=num_rounds_test)
-
     f.close()
 
     out = {}
@@ -416,6 +399,5 @@ if __name__ == "__main__":
 
     out['unique_summ_train'] = summarys_train_list
     out['unique_summ_val'] = summarys_val_list
-    # out['unique_summ_test'] = summarys_test_list
 
     json.dump(out, open(output_json, 'w'))
