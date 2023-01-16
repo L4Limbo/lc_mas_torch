@@ -75,8 +75,9 @@ def create_plots(path):
     os.makedirs('./plots/%s/qbot/' % path,  exist_ok=True)
 
     plot_train_vis(path)
-    plot_qbot_vis(path)
     plot_abot_vis(path)
+    plot_qbot_vis(path)
+    
 
 
 if __name__ == '__main__':

@@ -13,8 +13,6 @@ from utils import lc_utilities as utils
 from lc_dataloader import LCDataset
 from torch.utils.data import DataLoader
 
-from sklearn.metrics.pairwise import pairwise_distances
-
 from six.moves import range
 
 
@@ -97,6 +95,7 @@ def rankABot(aBot, dataset, split, scoringFunction, exampleLimit=None):
         aBot.reset()
         aBot.observe(-1, summary=summary, summaryLens=summaryLens, document=document,
                      documentLens=documentLens)
+        
         for round in range(numRounds):
             aBot.observe(
                 round,
@@ -129,7 +128,10 @@ def rankABot(aBot, dataset, split, scoringFunction, exampleLimit=None):
     logProbsAll = [torch.stack(lprobs, dim=0).mean() for lprobs in logProbsAll]
     roundwiseLogProbs = torch.stack(logProbsAll, dim=0).data.cpu().numpy()
     logProbsMean = roundwiseLogProbs.mean()
-    rankMetrics['logProbsMean'] = logProbsMean
+    try:
+        rankMetrics['logProbsMean'] = logProbsMean
+    except:
+        pass
 
     dataset.split = original_split
 

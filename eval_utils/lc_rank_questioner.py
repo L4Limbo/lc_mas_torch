@@ -25,7 +25,7 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
         ground truth documents, questions and answers. Q-Bot does not
         generate dialog in this setting - it only encodes ground truth
         documents and dialog in order to perform summary retrieval by
-        predicting summary after each round of dialog.
+        generating summary after each round of dialog.
 
         Arguments:
             qBot    : Q-Bot
@@ -55,21 +55,10 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
         num_workers=0,
         collate_fn=dataset.collate_fn)
 
-    rankMetrics = {
-        'logProbsMean': [],
-        'summLossMean': [],
-        'rouge': [],
-    }
-
-    rouge_scores = {
-        'r1': [],
-        'r2': [],
-        'rl': [],
-    }
-
     start_t = timer()
     logProbsAll = [[] for _ in range(numRounds)]
-    summLossAll = [[] for _ in range(numRounds)]
+    summLossAll = [[] for _ in range(numRounds + 1)]
+    
     for idx, batch in enumerate(dataloader):
         if idx == numBatches:
             break
@@ -86,65 +75,68 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
             }
         with torch.no_grad():
             summary = Variable(batch['summ'])
-            summaryLens = Variable(batch['summ_len'], requires_grad=False)
+            summaryLens = Variable(batch['summ_len'])
             document = Variable(batch['doc'])
             documentLens = Variable(batch['doc_len'])
-            questions = Variable(batch['ques'])
-            quesLens = Variable(batch['ques_len'])
+            gtQuestions = Variable(batch['ques'])
+            gtQuesLens = Variable(batch['ques_len'] )
             answers = Variable(batch['ans'])
             ansLens = Variable(batch['ans_len'])
-            options = Variable(batch['opt'])
-            optionLens = Variable(batch['opt_len'])
-            correctOptionInds = Variable(batch['ans_id'])
 
         qBot.reset()
-        qBot.observe(-1, summaryLens=summaryLens, document=document,
-                     documentLens=documentLens)
+        qBot.observe(-1, document=document, documentLens=documentLens)
+        
+        predSummary = qBot.predictSummary()
+        predGreedySummary = qBot.predictSummary(inference='greedy')
 
-        rankMetrics['rouge'] = []
+        summLogProbs = qBot.forwardSumm(summary=summary)
+        summDist = utils.maskedNll(summLogProbs,
+                                    summary.contiguous())
+        summDist = torch.mean(summDist)
+        summLossAll[0].append(summDist)
+
         for round in range(numRounds):
-            logProbsSum = 0
-            summLossSum = 0
-            r1 = 0
-            r2 = 0
-            rl = 0
             qBot.observe(
                 round,
-                ques=questions[:, round],
-                quesLens=quesLens[:, round],
-                ans=answers[:, round],
-                ansLens=ansLens[:, round])
+                ques=gtQuestions[:, round],
+                quesLens=gtQuesLens[:, round])
+            qBot.observe(
+                round, ans=answers[:, round], ansLens=ansLens[:, round])
+            
             quesLogProbs = qBot.forward()
-            qBotLoss = utils.maskedNll(quesLogProbs,
-                                       questions[:, round].contiguous())
-            logProbsSum += qBotLoss
+
+            logProbsAll[round].append(utils.maskedNll(quesLogProbs,
+                            gtQuestions[:, round].contiguous()))
+            
+            predSummary = qBot.predictSummary()
+            predGreedySummary = qBot.predictSummary(inference='greedy')
+
             summLogProbs = qBot.forwardSumm(summary=summary)
-            prevSummDist = utils.maskedNll(summLogProbs,
-                                           summary.contiguous())
-            summLossAll.append(torch.mean(prevSummDist))
-            summLossSum += prevSummDist
+            summDist = utils.maskedNll(summLogProbs,
+                                        summary.contiguous())
+            summDist = torch.mean(summDist)
+            summLossAll[round + 1].append(summDist)   
 
-            predSummary = predSummary = qBot.predictSummary()
-            for r_score in utils.rouge_scores(target=summary, generated=qBot.predictSummary()[
-                    0], word2vec=word2vec, vocabulary=vocabulary):
-                r1 += r_score['rouge-1']['f']
-                r2 += r_score['rouge-2']['f']
-                rl += r_score['rouge-l']['f']
+        end_t = timer()
+        delta_t = " Time: %5.2fs" % (end_t - start_t)
+        start_t = end_t
+        progressString = "\r[Qbot] Evaluating split '%s' [%d/%d]\t" + delta_t
+        sys.stdout.write(progressString % (split, idx + 1, numBatches))
+        sys.stdout.flush()
+    sys.stdout.write("\n")
+    
+    
 
-        rouge_scores['r1'].append(r1)
-        rouge_scores['r2'].append(r2)
-        rouge_scores['rl'].append(rl)
-        rankMetrics['logProbsMean'].append(logProbsSum)
-        rankMetrics['summLossMean'].append(summLossSum)
+    
+    logProbsAll = [torch.stack(lprobs, dim=0).mean() for lprobs in logProbsAll]
+    roundwiseLogProbs = torch.stack(logProbsAll, dim=0).data.cpu().numpy()
+    logProbsMean = roundwiseLogProbs.mean()
 
-    rankMetrics['summLossMean'] = (sum(
-        rankMetrics['summLossMean']) / len(rankMetrics['summLossMean'])).detach()
-    rankMetrics['logProbsMean'] = (sum(
-        rankMetrics['logProbsMean']) / len(rankMetrics['logProbsMean'])).detach()
-    rankMetrics['rouge'] = {
-        'r1': sum(rouge_scores['r1']) / len(rouge_scores['r1']),
-        'r2': sum(rouge_scores['r2']) / len(rouge_scores['r2']),
-        'rl': sum(rouge_scores['rl']) / len(rouge_scores['rl']),
+    summLossAll = [torch.stack(lprobs, dim=0).mean() for lprobs in summLossAll]
+    roundwiseSummProbs = torch.stack(summLossAll, dim=0).data.cpu().numpy()
+    summLossMean = roundwiseSummProbs.mean()
+    
+    return {
+        'logProbsMean' : logProbsMean,
+        'summLossMean': summLossMean
     }
-
-    return rankMetrics

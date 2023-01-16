@@ -2,3 +2,7 @@ checkpoints/
 plots/
 plot_data/
 data/word2vec
+data/generated_data
+data/processed_data
+data/raw_data
+__pycache__

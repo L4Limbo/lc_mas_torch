@@ -17,8 +17,8 @@ from torch.autograd import Variable
 import lc_options
 from lc_dataloader import LCDataset
 from torch.utils.data import DataLoader
-# from eval_utils.lc_rank_answerer import rankABot
-# from eval_utils.lc_rank_questioner import rankQBot
+from eval_utils.lc_rank_answerer import rankABot
+from eval_utils.lc_rank_questioner import rankQBot
 from utils import lc_utilities as utils
 from gensim.models import KeyedVectors
 import json
@@ -38,7 +38,7 @@ params = lc_options.readCommandLine()
 timeStamp = strftime('%d-%b-%y-%X-%a')
 
 print('Loading Vocabulary and Vectors')
-vocabulary = json.load(open(params['input_json'], 'r'))
+vocabulary = json.load(open(params['inputJson'], 'r'))
 word2vec = KeyedVectors.load_word2vec_format(
     params['word2vec'], binary=True)
 
@@ -160,6 +160,7 @@ abot_vis_val = {
 qbot_vis_val = {
     'iterIds': [],
     'logProbsMean': [],
+    'summLossMean':[],
     'rouge1': [],
     'rouge2': [],
     'rougel': [],
@@ -459,7 +460,7 @@ for epochId, idx, batch in batch_iter(dataloader):
             print('Using rl starting at round {}'.format(rlRound))
 
     # Print every now and then
-    if iterId % 30 == 0:
+    if iterId % 20 == 0:
         end_t = timer()
         curEpoch = float(iterId) / numIterPerEpoch
         timeStamp = strftime('%a %d %b %y %X', gmtime())
@@ -505,19 +506,33 @@ for epochId, idx, batch in batch_iter(dataloader):
         if qBot:
             qBot.eval()
 
-        # if aBot and 'ques' in batch:
-        #     abot_vis_val['iterIds'].append(iterId)
-        #     rankMetrics = rankABot(
-        #         aBot, dataset, 'val', scoringFunction=utils.maskedNll, exampleLimit=32 * params['batchSize'])
+        if aBot and 'ques' in batch:
+            print("aBot Validation:")
+            abot_vis_val['iterIds'].append(iterId)
+            rankMetrics = rankABot(
+                aBot, dataset, 'val', scoringFunction=utils.maskedNll, exampleLimit=32 * params['batchSize'])
 
-        #     try:
-        #         for metric, value in rankMetrics.items():
-        #             try:
-        #                 abot_vis_val[metric].append(value.astype(float))
-        #             except:
-        #                 pass
-        #     except:
-        #             pass
+            try:
+                for metric, value in rankMetrics.items():
+                    try:
+                        abot_vis_val[metric].append(value.astype(float))
+                    except:
+                        pass
+            except:
+                    pass
+                
+        if qBot:
+            print("qBot Validation:")
+            rankMetrics = rankQBot(qBot, dataset, 'val')
+
+            try:
+                for metric, value in rankMetrics.items():
+                    try:
+                        qbot_vis_val[metric].append(value.astype(float))
+                    except:
+                        pass
+            except:
+                    pass
               
 
     # Save the model after every epoch
