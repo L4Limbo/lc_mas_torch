@@ -1,7 +1,5 @@
 import os
 import argparse
-from six import iteritems
-from itertools import product
 from time import gmtime, strftime
 
 
@@ -17,7 +15,8 @@ def readCommandLine(argv=None):
                         help='HDF5 file with preprocessed questions')
     parser.add_argument('-inputJson', default='data/processed_data/processed_data.json',
                         help='JSON file with info and vocab')
-
+    parser.add_argument('-word2vec', default='data/word2vec/GoogleNews-vectors-negative300.bin',
+                        help='.bin file with word2vec pretrained model')
     # -------------------------------------------------------------------------
     # Logging settings
     parser.add_argument('-verbose', type=int, default=1,
@@ -37,10 +36,8 @@ def readCommandLine(argv=None):
     # Model params for both a-bot and q-bot
     parser.add_argument('-randomSeed', default=32, type=int,
                         help='Seed for random number generators')
-    parser.add_argument('-summEmbedSize', default=300, type=int,
-                        help='Size of the multimodal embedding')
-    parser.add_argument('-summGenSize', default=200, type=int,
-                        help='Size of the summary feature')
+    parser.add_argument('-summSize', default=60, type=int,
+                        help='Size of the generated summary')
     parser.add_argument('-embedSize', default=300, type=int,
                         help='Size of input word embeddings')
     parser.add_argument('-rnnHiddenSize', default=256, type=int,
@@ -78,7 +75,7 @@ def readCommandLine(argv=None):
     parser.add_argument('-minLRate', default=5e-5, type=float,
                         help='Minimum learning rate')
     parser.add_argument('-dropout', default=0.1, type=float, help='Dropout')
-    parser.add_argument('-numEpochs', default=5, type=int, help='Epochs')
+    parser.add_argument('-numEpochs', default=40, type=int, help='Epochs')
     parser.add_argument('-lrDecayRate', default=0.999962372474343, type=float,
                         help='Decay for learning rate')
     parser.add_argument('-CELossCoeff', default=1, type=float,
@@ -94,6 +91,12 @@ def readCommandLine(argv=None):
     parser.add_argument('-useGPU', action='store_true', help='Use GPU or CPU')
     parser.add_argument('-numWorkers', default=0, type=int,
                         help='Number of worker threads in dataloader')
+    
+    # -------------------------------------------------------------------------
+    # Reward functions
+    parser.add_argument('-reward', default='rouge',
+                        help='Choose a reward function for RL finetuning',
+                        choices=['rouge', 'levenshtein', 'word2vec','self_critic'])
 
     # -------------------------------------------------------------------------
     # Evaluation params
@@ -103,7 +106,7 @@ def readCommandLine(argv=None):
                         help='What task should the evaluator perform?',
                         choices=['ABotRank', 'QBotRank', 'QABotsRank', 'dialog'])
     parser.add_argument('-evalSplit', default='val',
-                        choices=['train', 'val', 'test'])
+                        choices=['train', 'val'])
     parser.add_argument('-evalTitle', default='eval',
                         help='If generating a plot, include this in the title')
     # -------------------------------------------------------------------------

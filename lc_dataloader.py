@@ -25,12 +25,14 @@ class LCDataset(Dataset):
         self.useOptions = True
         self.useHistory = True
         self.useSumm = True
+        self.summSize = 60
 
         # Absorb parameters
         for key, value in iteritems(params):
             setattr(self, key, value)
         self.subsets = tuple(subsets)
         self.numRounds = params['numRounds']
+        self.summSize = params['summSize']
 
         with open(self.inputJson, 'r') as fileId:
             info = json.load(fileId)
@@ -214,7 +216,7 @@ class LCDataset(Dataset):
         for thId in range(numConvs):
             length = seqLen[thId]
             if length == 0:
-                print('Warning processDocument: Skipping empty %s sequence at (%d)' % (stype,
+                print('Warning processDocument: Skipping empty %s sequence at (%d)' % ('doc',
                                                                                        thId))
                 continue
 
@@ -344,8 +346,14 @@ class LCDataset(Dataset):
         # if summary needed
         if self.useSumm:
             summ = torch.tensor([self.word2ind['<START>']] +
-                                self.data['summ'][str(idx)] + [self.word2ind['<END>']])
-            item['summ'] = summ
+                                self.data['summ'][str(idx)][:self.summSize] + [self.word2ind['<END>']], dtype=torch.int64)
+
             item['summ_len'] = torch.tensor(len(summ))
+
+            # add padding if needed
+            if len(summ) < self.summSize + 2:
+                summ = torch.cat(
+                    [summ, torch.zeros((self.summSize + 2) - len(summ), dtype=torch.int64)])
+            item['summ'] = summ
 
         return item
