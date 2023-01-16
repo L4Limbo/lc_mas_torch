@@ -10,16 +10,7 @@ build/
 checkpoints
 
 # Dialog output dumps
-dialog_output/results
-word2vec/
-raw_data/
-question_generation/
-generated_data/
-processed_data/
-data/raw_data/
-data/question_generation/
-data/generated_data/
-data/processed_data/
+
 
 # IPython Notebook
 .ipynb_checkpoints
