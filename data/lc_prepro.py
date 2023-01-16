@@ -24,13 +24,13 @@ SPLIT_INDEX = 117
 DOC_PATH = './generated_data/gen_dataset.json'
 SUMM_PATH = './generated_data/summary_dataset.json'
 INPUT_PATH = './generated_data/gen_dataset.json'
-TRAIN_PATH = './generated_data/xtrain.json'
-VAL_PATH = './generated_data/xval.json'
+TRAIN_PATH = './generated_data/train.json'
+VAL_PATH = './generated_data/val.json'
 
 # Output Files
-OUTPUT_JSON = './processed_data/processed_data_.json'
-OUTPUT_H5 = './processed_data/processed_data_.h5'
-OUTPUT_SUMM = './processed_data/xsumm_.json'
+OUTPUT_JSON = './processed_data/processed_data.json'
+OUTPUT_H5 = './processed_data/processed_data.h5'
+OUTPUT_SUMM = './processed_data/summ.json'
 
 
 def tokenize_data(data, word_count=False):
@@ -165,7 +165,7 @@ def create_data_mats(data_toks, ques_inds, ans_inds, dtype):
     summary_index = np.zeros(num_threads)
     max_doc_len = MAX_DOCUMENT_LEN
     documents = np.zeros([num_threads, max_doc_len])
-    document_len = np.zeros(num_threads, dtype=np.int)
+    document_len = np.zeros(num_threads, dtype=np.int64)
     summary_ids = list(data_toks.keys())
 
     for i in range(num_threads):
@@ -188,8 +188,8 @@ def create_data_mats(data_toks, ques_inds, ans_inds, dtype):
 
     questions = np.zeros([num_threads, num_rounds, max_ques_len])
     answers = np.zeros([num_threads, num_rounds, max_ans_len])
-    question_len = np.zeros([num_threads, num_rounds], dtype=np.int)
-    answer_len = np.zeros([num_threads, num_rounds], dtype=np.int)
+    question_len = np.zeros([num_threads, num_rounds], dtype=np.int64)
+    answer_len = np.zeros([num_threads, num_rounds], dtype=np.int64)
 
     # create questions and answers data mats
     for i in range(num_threads):
@@ -227,7 +227,7 @@ def create_data_mats(data_toks, ques_inds, ans_inds, dtype):
                 answer_index[i][j] = data_toks[summary_id]['dialog'][j]['gt_index'] + 1
                 
     options_list = np.zeros([len(ans_inds), max_ans_len])
-    options_len = np.zeros(len(ans_inds), dtype=np.int)
+    options_len = np.zeros(len(ans_inds), dtype=np.int64)
 
     for i in range(len(ans_inds)):
         options_len[i] = len(ans_inds[i][0:max_ans_len])
@@ -358,6 +358,7 @@ if __name__ == "__main__":
         data_train_toks, ques_train_inds, ans_train_inds, 'train')
     documents_val, documents_val_len, questions_val, questions_val_len, answers_val, answers_val_len, options_val, options_val_list, options_val_len, answers_val_index, summarys_val_index, summarys_val_list, _ = create_data_mats(
         data_val_toks, ques_val_inds, ans_val_inds, 'val')
+
 
     print('Saving hdf5...')
     f = h5py.File(output_h5, 'w')
