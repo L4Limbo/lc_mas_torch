@@ -8,7 +8,7 @@ from utils import lc_utilities as utils
 
 
 class Questioner(Agent):
-    def __init__(self, encoderParam, decoderParam, summGenSize=200,
+    def __init__(self, encoderParam, decoderParam, summSize=60,
                  verbose=1):
         '''
             Q-Bot Model
@@ -21,7 +21,7 @@ class Questioner(Agent):
         self.decType = decoderParam['type']
         self.dropout = encoderParam['dropout']
         self.rnnHiddenSize = encoderParam['rnnHiddenSize']
-        self.summGenSize = summGenSize
+        self.summSize = summSize
         encoderParam = encoderParam.copy()
         encoderParam['isAnswerer'] = False
 
@@ -84,7 +84,7 @@ class Questioner(Agent):
         logProbs = self.decoder(encStates, inputSeq=decIn)
         return logProbs
 
-    def forwardDecode(self, inference='sample', beamSize=1, maxSeqLen=40):
+    def forwardDecode(self, inference='sample', beamSize=1, maxSeqLen=30):
         '''
         Decode a sequence (question) using either sampling or greedy inference.
         A question is decoded given current state (dialog history). This can
@@ -108,7 +108,7 @@ class Questioner(Agent):
 
         return questions, quesLens
 
-    def predictSummary(self, inference='sample', beamSize=5, maxSeqLen=200):
+    def predictSummary(self, inference='sample', beamSize=5):
         '''
         Predict/guess an fc7 vector given the current conversation history. This can
         be called at round 0 after the document is observed, and at end of every round
@@ -117,7 +117,7 @@ class Questioner(Agent):
         encStates = self.encoder()
         summary, summaryLens = self.summGen.forwardDecode(
             encStates,
-            maxSeqLen=maxSeqLen,
+            maxSeqLen=self.summSize,
             inference=inference,
             beamSize=beamSize)
 

@@ -215,6 +215,7 @@ class Encoder(nn.Module):
                 quesTokens, quesLens, ansTokens, ansLens, padding='right')
             qa = self.wordEmbed(qaTokens)
             qaLens = quesLens + ansLens
+
             qaEmbed, states = utils.dynamicRNN(
                 self.factRNN, qa, qaLens, returnStates=True)
             factEmbed = qaEmbed
@@ -235,14 +236,24 @@ class Encoder(nn.Module):
         if self.isAnswerer:
             currIns.append(self.questionRNNStates[histIdx][0])
         if self.useSumm:
-            docLSTM = nn.LSTM(
+            seqTokens, seqLens = self.documentTokens, self.documentLens
+            summTokens, summLens = self.summaryTokens, self.summaryLens
+
+            seqSummTokens = utils.concatPaddedSequences(
+                summTokens, summLens, seqTokens, seqLens, padding='right')
+
+            seqSumm = self.wordEmbed(seqSummTokens)
+            seqSummLens = seqLens + summLens
+
+            self.docLSTM = nn.LSTM(
                 self.embedSize,
                 self.rnnHiddenSize,
                 self.numLayers,
                 batch_first=True,
-                dropout=0).cuda()
+                dropout=0)
+            
             dEmbed, states = utils.dynamicRNN(
-               docLSTM, self.documentEmbed, self.documentLens, returnStates=True)   
+               self.docLSTM, seqSumm, seqSummLens, returnStates=True)   
             currIns.append(dEmbed)
         hist_t = torch.cat(currIns, -1)
         self.dialogRNNInputs.append(hist_t)

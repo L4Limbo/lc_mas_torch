@@ -69,7 +69,7 @@ class Decoder(nn.Module):
 
     def forwardDecode(self,
                       encStates,
-                      maxSeqLen=40,
+                      maxSeqLen=30,
                       inference='sample',
                       beamSize=1):
         '''

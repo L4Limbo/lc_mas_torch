@@ -1,5 +1,3 @@
-import torch
-
 # static list of metrics
 metricList = ['r1', 'r5', 'r10', 'mean', 'mrr']
 # +1 - greater the better
@@ -28,4 +26,4 @@ def evaluateMetric(ranks, metric):
 
 def computeMetrics(ranks):
     results = {metric: evaluateMetric(ranks, metric) for metric in metricList}
-    return 
+    return results

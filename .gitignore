@@ -1,26 +1,3 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-
-# Distribution / packaging
-.Python
-env/
-build/
-
-# Checkpoints directory
-checkpoints
-
-# Dialog output dumps
-
-
-# IPython Notebook
-.ipynb_checkpoints
-
-# virtualenv
-venv/
-ENV/
-
-# plots
+checkpoints/
 plots/
 plot_data/
-
-transformers/

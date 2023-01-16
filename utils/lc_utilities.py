@@ -148,7 +148,7 @@ def loadModel(params, agent='abot', overwrite=False):
         model = Questioner(
             encoderParam,
             decoderParam,
-            summGenSize=200)
+            summGenSize=params['summSize'])
 
     if params['useGPU']:
         model.cuda()
@@ -348,6 +348,9 @@ def concatPaddedSequences(seq1, seqLens1, seq2, seqLens2, padding='right'):
     concat_output = torch.cat(concat_list, 0)
     return concat_output
 
+# -------------------------------------------------------------------
+# Helpers -----------------------------------------------------------
+# -------------------------------------------------------------------
 
 def word2vec_emb(sequence, word2vec, vocabulary):
     seq_tokens = []
@@ -374,41 +377,12 @@ def similarity_cosine(vec1, vec2):
     return 1-cosine_distance
 
 
-def rouge_scores(target, generated, word2vec, vocabulary):
-    scores = []
-
-    rouge = Rouge()
-
-    for i in range(len(target)):
-        tar = []
-        ref = []
-
-        for key in target[i]:
-            try:
-                if vocabulary['ind2word'][str(key.item())] != 'UNK':
-                    tar.append(vocabulary['ind2word'][str(key.item())])
-            except:
-                pass
-
-        for key in generated[i]:
-            try:
-                if vocabulary['ind2word'][str(key.item())] != 'UNK':
-                    ref.append(vocabulary['ind2word'][str(key.item())])
-            except:
-                pass
-
-        score = rouge.get_scores(
-            ' '.join(ref), ' '.join(tar), avg=True)
-        scores.append(score)
-    return scores
-
-
 # -------------------------------------------------------------------
 # Reward Functions --------------------------------------------------
 # -------------------------------------------------------------------
 
 
-def levenshtein_reward(target, generated, word2vec, vocabulary):
+def levenshtein_sim(target, generated, word2vec, vocabulary):
     rewards = []
     normalized_levenshtein = NormalizedLevenshtein()
     for i in range(len(target)):
@@ -436,7 +410,7 @@ def levenshtein_reward(target, generated, word2vec, vocabulary):
     return torch.tensor(rewards)
 
 
-def word2vec_reward(target, generated, word2vec, vocabulary):
+def word2vec_sim(target, generated, word2vec, vocabulary):
     rewards = []
 
     for i in range(len(target)):
@@ -449,7 +423,7 @@ def word2vec_reward(target, generated, word2vec, vocabulary):
     return torch.tensor(rewards)
 
 
-def rougel_f1_reward(target, generated, word2vec, vocabulary):
+def rougel_f1_sim(target, generated, word2vec, vocabulary):
     rewards = []
 
     rouge = Rouge()
@@ -479,7 +453,7 @@ def rougel_f1_reward(target, generated, word2vec, vocabulary):
     return torch.tensor(rewards)
 
 
-def rougel_comb_reward(target, generated, word2vec, vocabulary):
+def rouge_comb_sim(target, generated, word2vec, vocabulary):
     rewards = []
 
     rouge = Rouge()
@@ -502,10 +476,25 @@ def rougel_comb_reward(target, generated, word2vec, vocabulary):
             except:
                 pass
 
-        reward = 0.25 * rouge.get_scores(
-            ' '.join(ref), ' '.join(tar), avg=True)['rouge-1']['f'] + 1 * rouge.get_scores(
-            ' '.join(ref), ' '.join(tar), avg=True)['rouge-2']['f'] + 0.25 * rouge.get_scores(
-            ' '.join(ref), ' '.join(tar), avg=True)['rouge-l']['f'] 
+        r_scores = rouge.get_scores(' '.join(ref), ' '.join(tar), avg=True)
+
+        reward = 0.25 * r_scores['rouge-1']['f'] + 0.5 * r_scores ['rouge-2']['f'] + 0.25 * r_scores ['rouge-l']['f'] 
         rewards.append(reward)
 
     return torch.tensor(rewards)
+
+
+def calculate_similarity(target, generated, word2vec, vocabulary, sim_type='rouge'):
+    if sim_type == 'rouge':
+        return rougel_f1_sim(target, generated, word2vec, vocabulary)
+    
+    if sim_type == 'leven':
+        return levenshtein_sim(target, generated, word2vec, vocabulary)
+    
+    if sim_type == 'wor2vec':
+        return word2vec_sim(target, generated, word2vec, vocabulary)
+    
+    if sim_type == 'rouge_comb':
+        return rouge_comb_sim(target, generated, word2vec, vocabulary)
+    
+    assert 'This similarity type is not provided'
