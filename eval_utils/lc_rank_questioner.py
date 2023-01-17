@@ -60,9 +60,10 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
     summLossAll = [[] for _ in range(numRounds + 1)]
     
     for idx, batch in enumerate(dataloader):
+        print(idx)
         if idx == numBatches:
             break
-
+        
         if dataset.useGPU:
             batch = {
                 key: v.cuda() if hasattr(v, 'cuda') else v
@@ -135,7 +136,7 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
     summLossAll = [torch.stack(lprobs, dim=0).mean() for lprobs in summLossAll]
     roundwiseSummProbs = torch.stack(summLossAll, dim=0).data.cpu().numpy()
     summLossMean = roundwiseSummProbs.mean()
-    
+    dataset.split = original_split
     return {
         'logProbsMean' : logProbsMean,
         'summLossMean': summLossMean
