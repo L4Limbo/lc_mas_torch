@@ -58,6 +58,12 @@ class Encoder(nn.Module):
                 self.numLayers,
                 batch_first=True,
                 dropout=0)
+            self.docLSTM = nn.LSTM(
+                self.embedSize,
+                self.rnnHiddenSize,
+                self.numLayers,
+                batch_first=True,
+                dropout=0)
 
         # history encoder
         self.factRNN = nn.LSTM(
@@ -245,12 +251,7 @@ class Encoder(nn.Module):
             seqSumm = self.wordEmbed(seqSummTokens)
             seqSummLens = seqLens + summLens
 
-            self.docLSTM = nn.LSTM(
-                self.embedSize,
-                self.rnnHiddenSize,
-                self.numLayers,
-                batch_first=True,
-                dropout=0)
+
             
             dEmbed, states = utils.dynamicRNN(
                self.docLSTM, seqSumm, seqSummLens, returnStates=True)   
