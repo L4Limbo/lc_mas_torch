@@ -521,18 +521,18 @@ for epochId, idx, batch in batch_iter(dataloader):
             except:
                     pass
                 
-        if qBot:
-            print("qBot Validation:")
-            rankMetrics = rankQBot(qBot, dataset, 'val')
+        # if qBot:
+        #     print("qBot Validation:")
+        #     rankMetrics = rankQBot(qBot, dataset, 'val')
 
-            try:
-                for metric, value in rankMetrics.items():
-                    try:
-                        qbot_vis_val[metric].append(value.astype(float))
-                    except:
-                        pass
-            except:
-                    pass
+        #     try:
+        #         for metric, value in rankMetrics.items():
+        #             try:
+        #                 qbot_vis_val[metric].append(value.astype(float))
+        #             except:
+        #                 pass
+        #     except:
+        #             pass
               
 
     # Save the model after every epoch
