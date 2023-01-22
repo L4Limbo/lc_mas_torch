@@ -26,9 +26,9 @@ def readCommandLine(argv=None):
                         help='Path to save checkpoints')
     parser.add_argument('-saveName', default='',
                         help='Name of save directory within savePath')
-    parser.add_argument('-startFrom', type=str, default='',
+    parser.add_argument('-startFrom', type=str, default='checkpoints/sl_abot/abot_ep_59.vd',
                         help='Copy weights from model at this path')
-    parser.add_argument('-qstartFrom', type=str, default='',
+    parser.add_argument('-qstartFrom', type=str, default='checkpoints/sl_qbot/qbot_ep_59.vd',
                         help='Copy weights from qbot model at this path')
     parser.add_argument('-continue', action='store_true',
                         help='Continue training from last epoch')
@@ -36,11 +36,11 @@ def readCommandLine(argv=None):
     # Model params for both a-bot and q-bot
     parser.add_argument('-randomSeed', default=32, type=int,
                         help='Seed for random number generators')
-    parser.add_argument('-summSize', default=60, type=int,
+    parser.add_argument('-summSize', default=200, type=int,
                         help='Size of the generated summary')
     parser.add_argument('-embedSize', default=300, type=int,
                         help='Size of input word embeddings')
-    parser.add_argument('-rnnHiddenSize', default=32, type=int,
+    parser.add_argument('-rnnHiddenSize', default=256, type=int,
                         help='Size of the LSTM state')
     parser.add_argument('-numLayers', default=2, type=int,
                         help='Number of layers in LSTM')
@@ -62,12 +62,12 @@ def readCommandLine(argv=None):
 
     # -------------------------------------------------------------------------
     # Optimization / training params
-    parser.add_argument('-trainMode', default='sl-abot',
+    parser.add_argument('-trainMode', default='rl-full-QAf',
                         help='What should train.py do?',
                         choices=['sl-abot', 'sl-qbot', 'rl-full-QAf'])
     parser.add_argument('-numRounds', default=10, type=int,
                         help='Number of rounds of dialog (max 10)')
-    parser.add_argument('-batchSize', default=1, type=int,
+    parser.add_argument('-batchSize', default=2, type=int,
                         help='Batch size (number of threads) '
                         '(Adjust base on GPU memory)')
     parser.add_argument('-learningRate', default=1e-3, type=float,
@@ -75,7 +75,7 @@ def readCommandLine(argv=None):
     parser.add_argument('-minLRate', default=5e-5, type=float,
                         help='Minimum learning rate')
     parser.add_argument('-dropout', default=0, type=float, help='Dropout')
-    parser.add_argument('-numEpochs', default=60, type=int, help='Epochs')
+    parser.add_argument('-numEpochs', default=20, type=int, help='Epochs')
     parser.add_argument('-lrDecayRate', default=0.999962372474343, type=float,
                         help='Decay for learning rate')
     parser.add_argument('-CELossCoeff', default=1, type=float,
@@ -94,7 +94,7 @@ def readCommandLine(argv=None):
     
     # -------------------------------------------------------------------------
     # Reward functions
-    parser.add_argument('-simFunction', default='rouge',
+    parser.add_argument('-simFunction', default='self_critic',
                         help='Choose a similarity function for reward in RL finetuning',
                         choices=['rouge', 'levenshtein', 'word2vec', 'self_critic'])
 
