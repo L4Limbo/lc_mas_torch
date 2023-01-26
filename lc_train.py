@@ -93,7 +93,7 @@ dataset.split = 'train'
 dataloader = DataLoader(
     dataset,
     batch_size=params['batchSize'],
-    shuffle=False,
+    shuffle=True,
     num_workers=params['numWorkers'],
     drop_last=True,
     collate_fn=dataset.collate_fn,
@@ -180,7 +180,7 @@ def batch_iter(dataloader):
 
 
 start_t = timer()
-
+print(params['simFunction'])
 started_time = timer()
 
 for epochId, idx, batch in batch_iter(dataloader):
@@ -426,7 +426,7 @@ for epochId, idx, batch in batch_iter(dataloader):
             rlLoss += torch.mean(sumGenRLLoss)
 
     # Loss coefficients
-    rlCoeff = 1
+    rlCoeff = 10
     rlLoss = rlLoss * rlCoeff
     summLoss = summLoss * params['summLossCoeff']
     # Averaging over rounds
@@ -523,9 +523,8 @@ for epochId, idx, batch in batch_iter(dataloader):
                 
         if qBot:
             print("qBot Validation:")
-            qbot_vis_val['iterIds'].append(iterId)
             rankMetrics = rankQBot(qBot, dataset, 'val')
-
+            qbot_vis_val['iterIds'].append(iterId)
             try:
                 for metric, value in rankMetrics.items():
                     try:
@@ -566,8 +565,14 @@ for epochId, idx, batch in batch_iter(dataloader):
         except:
             print('didnt save abot_vis_val')
 
+        try:
+            with open('%s/qbot_vis_val.json' % path, 'w') as jsonFile:
+                jsonFile.write(json.dumps(qbot_vis_val, indent=4))
+        except:
+            print('didnt save abot_vis_val')
 
-print('Training Session finished in %s' % (started_time-timer()))
+
+print('Training Session finished in %s s' % (timer()-started_time))
 print('Creating Plots ... ')
 lc_plotter.create_plots('json_%s' % tmstp)
 
