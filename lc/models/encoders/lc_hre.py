@@ -241,7 +241,7 @@ class Encoder(nn.Module):
         currIns = [self.factEmbeds[histIdx][0]]
         if self.isAnswerer:
             currIns.append(self.questionRNNStates[histIdx][0])
-        if self.useSumm:
+        if self.useSumm and self.isAnswerer:
             seqTokens, seqLens = self.documentTokens, self.documentLens
             summTokens, summLens = self.summaryTokens, self.summaryLens
 
@@ -250,8 +250,6 @@ class Encoder(nn.Module):
 
             seqSumm = self.wordEmbed(seqSummTokens)
             seqSummLens = seqLens + summLens
-
-
             
             dEmbed, states = utils.dynamicRNN(
                self.docLSTM, seqSumm, seqSummLens, returnStates=True)   
