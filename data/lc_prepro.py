@@ -13,10 +13,10 @@ nltk.download('punkt')
 nltk.download('stopwords')
 stop_words = stopwords.words('english')
 
-MAX_QUESTION_LEN = 30
-MAX_ANSWER_LEN = 30
+MAX_QUESTION_LEN = 40
+MAX_ANSWER_LEN = 40
 MAX_DOCUMENT_LEN = 1400
-MAX_SUMMARY_LEN = 60
+MAX_SUMMARY_LEN = 200
 NUMBER_OF_ROUNDS = 10
 
 SPLIT_INDEX = 117
