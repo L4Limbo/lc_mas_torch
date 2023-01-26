@@ -36,8 +36,8 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
                            the dataset split. If None, all data points.
     '''
 
-    if (word2vec == None or vocabulary == None):
-        assert('Vocabulary and Vectors not provided')
+    # if (word2vec == None or vocabulary == None):
+    #     assert('Vocabulary and Vectors not provided')
 
     batchSize = dataset.batchSize
     numRounds = dataset.numRounds
@@ -60,10 +60,9 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
     summLossAll = [[] for _ in range(numRounds + 1)]
     
     for idx, batch in enumerate(dataloader):
-        print(idx)
         if idx == numBatches:
             break
-        
+
         if dataset.useGPU:
             batch = {
                 key: v.cuda() if hasattr(v, 'cuda') else v
@@ -136,7 +135,9 @@ def rankQBot(qBot, dataset, split, exampleLimit=None, verbose=0, vocabulary=None
     summLossAll = [torch.stack(lprobs, dim=0).mean() for lprobs in summLossAll]
     roundwiseSummProbs = torch.stack(summLossAll, dim=0).data.cpu().numpy()
     summLossMean = roundwiseSummProbs.mean()
+    
     dataset.split = original_split
+    
     return {
         'logProbsMean' : logProbsMean,
         'summLossMean': summLossMean
