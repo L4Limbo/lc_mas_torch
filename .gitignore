@@ -6,3 +6,4 @@ data/generated_data
 data/processed_data
 data/raw_data
 __pycache__
+env.yml

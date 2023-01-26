@@ -26,9 +26,9 @@ def readCommandLine(argv=None):
                         help='Path to save checkpoints')
     parser.add_argument('-saveName', default='',
                         help='Name of save directory within savePath')
-    parser.add_argument('-startFrom', type=str, default='checkpoints/sl_abot/abot_ep_59.vd',
+    parser.add_argument('-startFrom', type=str, default='',
                         help='Copy weights from model at this path')
-    parser.add_argument('-qstartFrom', type=str, default='checkpoints/sl_qbot/qbot_ep_59.vd',
+    parser.add_argument('-qstartFrom', type=str, default='',
                         help='Copy weights from qbot model at this path')
     parser.add_argument('-continue', action='store_true',
                         help='Continue training from last epoch')
