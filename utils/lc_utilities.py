@@ -478,7 +478,7 @@ def rouge_comb_sim(target, generated, word2vec, vocabulary):
 
         r_scores = rouge.get_scores(' '.join(ref), ' '.join(tar), avg=True)
 
-        reward = 0.25 * r_scores['rouge-1']['f'] + 0.5 * r_scores ['rouge-2']['f'] + 0.25 * r_scores ['rouge-l']['f'] 
+        reward = 0.25 * r_scores['rouge-1']['f'] + 0.5 * r_scores['rouge-2']['f'] + 0.25 * r_scores['rouge-l']['f'] 
         rewards.append(reward)
 
     return torch.tensor(rewards)
@@ -491,7 +491,7 @@ def calculate_similarity(target, generated, word2vec, vocabulary, sim_type='roug
     if sim_type == 'levenshtein':
         return levenshtein_sim(target, generated, word2vec, vocabulary)
     
-    if sim_type == 'wor2vec':
+    if sim_type == 'word2vec':
         return word2vec_sim(target, generated, word2vec, vocabulary)
     
     if sim_type == 'rouge_comb':
