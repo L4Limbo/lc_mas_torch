@@ -25,7 +25,7 @@ class LCDataset(Dataset):
         self.useOptions = True
         self.useHistory = True
         self.useSumm = True
-        self.summSize = 60
+        self.summSize = 200
 
         # Absorb parameters
         for key, value in iteritems(params):
