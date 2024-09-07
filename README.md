@@ -76,5 +76,7 @@ python train.py -useGPU -continue
 ### Διαγράμματα Εκπαίδευσης και Αξιολόγησης
 Τα διαγράμματα εκπαίδευσης και αξιολόγησης μαζί με τα δεδομένα που τα δημιουργούν υπάρχουν στο [Google Colab](https://colab.research.google.com) στους φακέλους `plots` και `plot_data`, αντίστοιχα και χρησιμοποιούνται στο αρχείο [pg_plots.ipynb](pg_plots.ipynb).
 
+### Κείμενο
+https://nemertes.library.upatras.gr/items/939f54da-0475-4e3b-8016-dfb1d40366ab
 
 
